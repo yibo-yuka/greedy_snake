@@ -300,8 +300,8 @@ class SnakeGame {
     const pts          = base * Math.pow(2, activeStreak);
     this.score        += pts;
 
-    // Chain broken → reset to 1 so NEXT apple can still get double if within 1 turn
-    this.comboStreak     = withinOne ? this.comboStreak + 1 : 1;
+    // Chain broken → reset to 1; max combo depth = 5 (×32 = 320), then wraps back to 1
+    this.comboStreak     = withinOne ? (this.comboStreak >= 5 ? 1 : this.comboStreak + 1) : 1;
     this.turnsSinceApple = 0;
 
     // Particle burst at apple position
