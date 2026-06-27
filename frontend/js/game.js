@@ -144,9 +144,7 @@ class SnakeGame {
     this.dir      = { ...DIR.RIGHT };
     this.nextDir  = { ...DIR.RIGHT };
     this.apple    = null;
-    this.score    = 0;
-    this.applesEaten = 0;
-    this.speed    = INIT_SPEED;
+    this.speed    = this.gridSize <= 10 ? 500 : 800;
     this.prevHighScore = parseInt(localStorage.getItem('snake_highscore') || '0');
 
     // Loop handles
@@ -193,9 +191,9 @@ class SnakeGame {
     ];
     this.dir      = { ...DIR.RIGHT };
     this.nextDir  = { ...DIR.RIGHT };
-    this.score    = 0;
+    this.score       = 0;
     this.applesEaten = 0;
-    this.speed    = INIT_SPEED;
+    this.speed    = this.gridSize <= 10 ? 500 : 800;
     this.particles  = [];
     this.deathParts = [];
     this.dying    = false;
@@ -302,8 +300,8 @@ class SnakeGame {
     const pts          = base * Math.pow(2, activeStreak);
     this.score        += pts;
 
-    // Update streak for NEXT apple
-    this.comboStreak     = withinOne ? this.comboStreak + 1 : 0;
+    // Chain broken → reset to 1 so NEXT apple can still get double if within 1 turn
+    this.comboStreak     = withinOne ? this.comboStreak + 1 : 1;
     this.turnsSinceApple = 0;
 
     // Particle burst at apple position
@@ -327,7 +325,9 @@ class SnakeGame {
 
     // Accelerate game tick
     if (this.speed > MIN_SPEED) {
-      this.speed = Math.max(MIN_SPEED, this.speed - SPEED_STEP);
+      const minSpd = this.gridSize <= 10 ? 80 : this.gridSize <= 15 ? 150 : 200;
+      const step   = this.gridSize <= 10 ? 8  : 10;
+      this.speed = Math.max(minSpd, this.speed - step);
       this._tick();
     }
 
@@ -667,7 +667,7 @@ class LevelSnakeGame extends SnakeGame {
     this.obstacles       = [];
     this.levelBonus      = 0;
     this.transitioning   = false;
-    this.speed           = INIT_SPEED;
+    this.speed           = this.gridSize <= 10 ? 500 : 800;
     this.turnsSinceApple = 0;
     this._updateLevelHUD();
   }
@@ -700,7 +700,11 @@ class LevelSnakeGame extends SnakeGame {
     }
   }
 
-  // ── Override eatApple: level progression ───────
+  /** Level-scaled apple score: base +5 pts per level starting from level 3 */
+  _getAppleScore() {
+    return SCORE_APPLE + Math.max(0, this.currentLevel - 2) * 5;
+  }
+
   eatApple(pos) {
     if (this.transitioning) return;
     super.eatApple(pos); // score, particles, speed, respawn apple
@@ -986,16 +990,31 @@ class App {
     this._gameOverLevel = level;
   }
 
-  showGameOver(score, apples, prevHighScore) {
+  showGameOver(score, apples, _prevHighScore) {
     const isLevel  = this.currentMode === 'level';
-    const hiKey    = isLevel ? 'snake_hs_level' : 'snake_highscore';
-    const currentHi = parseInt(localStorage.getItem(hiKey) || '0');
-    const isNewRec  = score > 0 && score > (prevHighScore ?? -1) && score >= currentHi;
+    const scoreKey = isLevel ? 'snake_hs_level'        : 'snake_highscore';
+    const appleKey = isLevel ? 'snake_hs_level_apples' : 'snake_hs_inf_apples';
+    const ratioKey = isLevel ? 'snake_hs_level_ratio'  : 'snake_hs_inf_ratio';
+
+    const prevScore  = parseInt(localStorage.getItem(scoreKey)   || '0');
+    const prevApples = parseInt(localStorage.getItem(appleKey)   || '0');
+    const prevRatio  = parseFloat(localStorage.getItem(ratioKey) || '0');
+    const ratio      = apples > 0 ? score / apples : 0;
+
+    const isNewScore  = score  > 0 && score  > prevScore;
+    const isNewApples = apples > 0 && apples > prevApples;
+    const isNewRatio  = ratio  > 0 && ratio  > prevRatio;
+    const isNewRec    = isNewScore || isNewApples || isNewRatio;
+
+    // Persist each record independently
+    if (isNewScore)  localStorage.setItem(scoreKey,  String(score));
+    if (isNewApples) localStorage.setItem(appleKey,  String(apples));
+    if (isNewRatio)  localStorage.setItem(ratioKey,  ratio.toFixed(4));
 
     const el = (id) => document.getElementById(id);
     el('gameoverNickname').textContent = this.nickname || '玩家';
     el('finalScore').textContent       = score;
-    el('finalBest').textContent        = Math.max(score, currentHi);
+    el('finalBest').textContent        = Math.max(score, prevScore);
 
     if (isLevel && this._gameOverLevel) {
       el('finalApples').textContent = `${apples}顆 · Lv.${this._gameOverLevel}`;
@@ -1006,19 +1025,16 @@ class App {
     const badge = el('newRecordBadge');
     if (badge) badge.style.display = isNewRec ? 'block' : 'none';
 
-    // Show submit button only if backend online AND this is a new personal record
-    const submitRow = el('submitRow');
-    const submitBtn = el('btnSubmitScore');
+    const submitRow  = el('submitRow');
+    const submitBtn  = el('btnSubmitScore');
     const submitHint = el('submitHint');
     if (submitRow) {
       const isOffline = !window.SNAKE_CONFIG?.apiUrl;
-      // Only show if score > 0, online, AND it's a new personal best
       submitRow.style.display = (score > 0 && !isOffline && isNewRec) ? 'flex' : 'none';
-      if (submitBtn) submitBtn.disabled = false;
+      if (submitBtn)  submitBtn.disabled = false;
       if (submitHint) submitHint.textContent = '';
     }
 
-    // Cache game-over data for submit handler
     this._lastGameResult = { score, apples, level: this._gameOverLevel };
 
     this.showScreen('gameover');
