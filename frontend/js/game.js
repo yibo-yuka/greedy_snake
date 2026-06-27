@@ -193,7 +193,7 @@ class SnakeGame {
     this.nextDir  = { ...DIR.RIGHT };
     this.score       = 0;
     this.applesEaten = 0;
-    this.speed    = this.gridSize <= 10 ? 500 : 800;
+    this.speed    = 300;
     this.particles  = [];
     this.deathParts = [];
     this.dying    = false;
@@ -667,7 +667,7 @@ class LevelSnakeGame extends SnakeGame {
     this.obstacles       = [];
     this.levelBonus      = 0;
     this.transitioning   = false;
-    this.speed           = this.gridSize <= 10 ? 500 : 800;
+    this.speed           = 300;
     this.turnsSinceApple = 0;
     this._updateLevelHUD();
   }
