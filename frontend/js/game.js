@@ -390,12 +390,13 @@ class SnakeGame {
     const { ctx, canvas } = this;
     const W = canvas.width;
     const c = this.cellSize;
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
 
     // Background
-    ctx.fillStyle = '#050510';
+    ctx.fillStyle = light ? '#f5ede0' : '#050510';
     ctx.fillRect(0, 0, W, W);
 
-    // Cell grid — clear rounded-rect border for every cell
+    // Cell grid
     ctx.save();
     const gridCols = this.gridSize;
     const gridRows = this.gridSize;
@@ -405,8 +406,8 @@ class SnakeGame {
         const by  = row * c;
         const pad = c * 0.06;
         const r   = c * 0.20;
-        ctx.fillStyle   = 'rgba(57, 255, 20, 0.03)';
-        ctx.strokeStyle = 'rgba(57, 255, 20, 0.30)';
+        ctx.fillStyle   = light ? 'rgba(100, 130, 50, 0.05)' : 'rgba(57, 255, 20, 0.03)';
+        ctx.strokeStyle = light ? 'rgba(100, 130, 50, 0.18)' : 'rgba(57, 255, 20, 0.30)';
         ctx.lineWidth   = 1.5;
         roundRect(ctx, bx + pad, by + pad, c - pad * 2, c - pad * 2, r);
         ctx.fill();
@@ -443,12 +444,12 @@ class SnakeGame {
       ctx.textBaseline = 'middle';
       ctx.shadowBlur   = 14;
       for (const lbl of this.comboLabels) {
-        const scale = 0.80 + lbl.size * 0.12;  // bigger font for deeper streaks
+        const scale = 0.80 + lbl.size * 0.12;
         const fs    = Math.max(13, Math.round(this.cellSize * scale));
         ctx.font         = `bold ${fs}px 'Orbitron', 'Rajdhani', monospace`;
         ctx.globalAlpha  = lbl.opacity;
-        ctx.shadowColor  = '#ffd700';
-        ctx.fillStyle    = '#ffd700';
+        ctx.shadowColor  = light ? 'rgba(46,125,26,0.55)' : '#ffd700';
+        ctx.fillStyle    = light ? '#1a5c0a'              : '#ffd700';
         ctx.fillText(lbl.text, lbl.x, lbl.y);
         lbl.y       += lbl.vy;
         lbl.opacity -= 0.022;
@@ -521,11 +522,12 @@ class SnakeGame {
   drawSnake() {
     const { ctx, cellSize: c, snake, dir } = this;
     const len = snake.length;
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
 
     // Draw from tail to head so head renders on top
     for (let i = len - 1; i >= 0; i--) {
       const seg    = snake[i];
-      const t      = i / Math.max(len - 1, 1); // 0=head, 1=tail
+      const t      = i / Math.max(len - 1, 1);
       const isHead = i === 0;
 
       ctx.save();
@@ -536,16 +538,21 @@ class SnakeGame {
         ctx.globalAlpha = Math.max(0, 1 - progress * 1.6);
       }
 
-      // Color: neon green at head → dark green at tail
+      // Color: head vivid → tail dark
       if (isHead) {
-        ctx.fillStyle   = '#39ff14';
-        ctx.shadowColor = '#39ff14';
-        ctx.shadowBlur  = 16;
+        ctx.fillStyle   = light ? '#2e7d1a' : '#39ff14';
+        ctx.shadowColor = light ? 'rgba(46,125,26,0.55)' : '#39ff14';
+        ctx.shadowBlur  = light ? 8 : 16;
       } else {
-        const g = Math.round(lerp(255, 90, t * 0.72));
-        const r = Math.round(lerp(22, 5, t));
-        ctx.fillStyle   = `rgb(${r},${g},12)`;
-        ctx.shadowColor = 'rgba(57,200,14,0.2)';
+        const g = light
+          ? Math.round(lerp(100, 50, t * 0.72))
+          : Math.round(lerp(255, 90, t * 0.72));
+        const r = light
+          ? Math.round(lerp(46, 18, t))
+          : Math.round(lerp(22, 5, t));
+        const b = light ? 18 : 12;
+        ctx.fillStyle   = `rgb(${r},${g},${b})`;
+        ctx.shadowColor = light ? 'rgba(46,125,26,0.12)' : 'rgba(57,200,14,0.2)';
         ctx.shadowBlur  = 4;
       }
 
@@ -788,23 +795,28 @@ class LevelSnakeGame extends SnakeGame {
   drawExtras() {
     if (!this.obstacles.length) return;
     const { ctx, cellSize: c } = this;
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
     ctx.save();
     this.obstacles.forEach(obs => {
       const inset = c * 0.09;
       const x = obs.x * c + inset;
       const y = obs.y * c + inset;
       const w = c - inset * 2;
-      ctx.shadowColor = 'rgba(100,116,139,0.5)';
+      ctx.shadowColor = light ? 'rgba(100,70,30,0.4)' : 'rgba(100,116,139,0.5)';
       ctx.shadowBlur  = 5;
       const g = ctx.createLinearGradient(x, y, x + w, y + w);
-      g.addColorStop(0, '#2d3748');
-      g.addColorStop(1, '#1a202c');
+      if (light) {
+        g.addColorStop(0, '#8b7355');
+        g.addColorStop(1, '#6b5a3e');
+      } else {
+        g.addColorStop(0, '#2d3748');
+        g.addColorStop(1, '#1a202c');
+      }
       ctx.fillStyle = g;
       roundRect(ctx, x, y, w, w, w * 0.22);
       ctx.fill();
-      // ✕ cross
       ctx.shadowBlur  = 0;
-      ctx.strokeStyle = 'rgba(148,163,184,0.45)';
+      ctx.strokeStyle = light ? 'rgba(100,70,30,0.35)' : 'rgba(148,163,184,0.45)';
       ctx.lineWidth   = Math.max(1, c * 0.07);
       ctx.lineCap     = 'round';
       const p = w * 0.27;

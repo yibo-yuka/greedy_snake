@@ -45,6 +45,7 @@ body {
   --c-gold-glow:    rgba(255, 215, 0, 0.22);
   --c-blue:         #00c8ff;
   --c-purple:       #a855f7;
+  --c-mint:         #6ee7b7;
 
   --c-text:         #e2e8f0;
   --c-text2:        #8892b0;
@@ -94,6 +95,26 @@ html[data-theme="light"] {
 html[data-theme="light"] body {
   background: var(--c-bg);
   color: var(--c-text);
+}
+
+/* Light theme — game title "SNAKE" in mint + dark-green glow */
+html[data-theme="light"] .game-title span {
+  color: var(--c-mint);
+  text-shadow:
+    0 0 8px  rgba(110, 231, 183, 0.70),
+    0 0 26px rgba(46, 125, 26, 0.40),
+    0 0 52px rgba(46, 125, 26, 0.18);
+}
+
+html[data-theme="light"] .logo-emoji {
+  filter: drop-shadow(0 0 12px rgba(46, 125, 26, 0.45));
+}
+
+/* Light theme — mode badge in mint green + dark text */
+html[data-theme="light"] .mode-badge {
+  background: var(--c-mint);
+  color: #0a2e14;
+  box-shadow: 0 0 10px rgba(110, 231, 183, 0.35);
 }
 
 /* Smooth theme transition */
