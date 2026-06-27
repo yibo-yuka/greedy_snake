@@ -181,6 +181,21 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   padding: 8px 0 4px;
 }
 
+.ladder-sel-host {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+.hud-apple {
+  font-size: 0.75rem;
+  color: #f87171;
+  font-weight: 600;
+  margin-left: auto;
+  padding-right: 4px;
+}
+
+
 
 .btn-ghost.btn-sm {
   padding: 6px 12px;

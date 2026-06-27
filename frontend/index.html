@@ -317,8 +317,10 @@
       <div class="canvas-wrap">
         <canvas id="ladderCanvas" aria-label="爬梯競速遊戲畫面"></canvas>
       </div>
-      <!-- No D-pad: ladder race is fully automatic -->
-      <p class="ladder-auto-hint">🤖 蛇自動移動，等待選位後比賽開始…</p>
+      <!-- Host early-start during selection phase (shown only to host) -->
+      <div class="ladder-sel-host hidden" id="ladderSelHost">
+        <button class="btn-primary" id="btnForceStart">🚀 大家選好了，立即開始！</button>
+      </div>
     </div>
   </div>
 

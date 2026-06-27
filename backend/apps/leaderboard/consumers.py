@@ -1,8 +1,7 @@
 """
-Ladder Race v2 — Django Channels WebSocket Consumer
-=====================================================
-Handles: room creation, lobby, close_room, start-position selection,
-         auto-movement game loop (80% move probability).
+Ladder Race v2.1 — Django Channels WebSocket Consumer
+=======================================================
+新增：force_start（主機提早開始）、蘋果計分持久化
 """
 import asyncio
 import json
@@ -57,6 +56,7 @@ class LadderConsumer(AsyncWebsocketConsumer):
             'close_room':   self._close_room,
             'start_game':   self._start_game,
             'select_start': self._select_start,
+            'force_start':  self._force_start,
         }
         handler = handlers.get(data.get('type', ''))
         if handler:
@@ -68,55 +68,41 @@ class LadderConsumer(AsyncWebsocketConsumer):
         code = make_room_code()
         self.room_code = code
         self.player_id = 'p1'
-
         room = LadderRoom(code, 'p1')
         room.add_lobby_player('p1', nickname)
         ROOMS[code] = room
-
         await self.channel_layer.group_add(self._grp(), self.channel_name)
         await self._send({
-            'type':      'room_joined',
-            'room_code': code,
-            'player_id': 'p1',
-            'players':   room.lobby_list(),
-            'is_host':   True,
-            'map':       _map_payload(),
+            'type': 'room_joined', 'room_code': code,
+            'player_id': 'p1', 'players': room.lobby_list(),
+            'is_host': True, 'map': _map_payload(),
         })
 
     async def _join_room(self, data: dict) -> None:
         code     = str(data.get('room_code', '')).upper().strip()
         nickname = str(data.get('nickname', 'Player'))[:20]
         room     = ROOMS.get(code)
-
         if not room:
             return await self._send({'type': 'error', 'message': '找不到房間'})
         if room.state != 'lobby':
             return await self._send({'type': 'error', 'message': '遊戲已開始，無法加入'})
         if len(room.lobby) >= MAX_PLAYERS:
-            return await self._send({'type': 'error',
-                                     'message': f'房間已滿（最多 {MAX_PLAYERS} 人）'})
-
+            return await self._send({'type': 'error', 'message': f'房間已滿（最多 {MAX_PLAYERS} 人）'})
         self.room_code = code
         pid = f'p{len(room.lobby) + 1}'
         self.player_id = pid
         room.add_lobby_player(pid, nickname)
-
         await self.channel_layer.group_add(self._grp(), self.channel_name)
         await self._send({
-            'type':      'room_joined',
-            'room_code': code,
-            'player_id': pid,
-            'players':   room.lobby_list(),
-            'is_host':   False,
-            'map':       _map_payload(),
+            'type': 'room_joined', 'room_code': code,
+            'player_id': pid, 'players': room.lobby_list(),
+            'is_host': False, 'map': _map_payload(),
         })
         await self._broadcast('player_joined_msg', {
-            'player_id': pid,
-            'players':   room.lobby_list(),
+            'player_id': pid, 'players': room.lobby_list(),
         })
 
     async def _close_room(self, data: dict) -> None:
-        """Host closes the room; all players are kicked back to menu."""
         room = ROOMS.get(self.room_code)
         if not room or self.player_id != room.host_id:
             return
@@ -131,11 +117,9 @@ class LadderConsumer(AsyncWebsocketConsumer):
             return
         if len(room.lobby) < 2:
             return await self._send({'type': 'error', 'message': '至少需要 2 位玩家'})
-
         room.state = 'selecting'
         await self._broadcast('selecting_msg', {
-            'countdown': SELECTION_TIME,
-            'map':       _map_payload(),
+            'countdown': SELECTION_TIME, 'map': _map_payload(),
         })
         asyncio.ensure_future(self._selection_countdown(self.room_code))
 
@@ -150,28 +134,42 @@ class LadderConsumer(AsyncWebsocketConsumer):
         if not room.select_col(self.player_id, col):
             return await self._send({'type': 'error', 'message': '此位置已被選'})
         await self._broadcast('start_selected_msg', {
-            'player_id':     self.player_id,
-            'col':           col,
+            'player_id': self.player_id, 'col': col,
             'selected_cols': room.selected_cols,
         })
 
-    # ── Selection countdown → game launch ──────────────────────────────────────
+    async def _force_start(self, data: dict) -> None:
+        """主機在選位階段按「立即開始」，跳過剩餘倒數。"""
+        room = ROOMS.get(self.room_code)
+        if not room or self.player_id != room.host_id or room.state != 'selecting':
+            return
+        # 修改 state → 讓正在 sleep 的 _selection_countdown 醒來後直接 return
+        room.auto_assign()
+        room.build_players()
+        room.state = 'playing'
+        await self._broadcast('game_started_msg', {
+            'state': room.game_state(),
+            'selected_cols': room.selected_cols,
+            'map': _map_payload(),
+        })
+        room.tick_task = asyncio.ensure_future(
+            _game_loop(self.room_code, self.channel_layer)
+        )
+
+    # ── Selection countdown ────────────────────────────────────────────────────
     async def _selection_countdown(self, room_code: str) -> None:
         await asyncio.sleep(SELECTION_TIME)
         room = ROOMS.get(room_code)
         if not room or room.state != 'selecting':
-            return
-
+            return  # 已被 force_start 或房間已關閉
         room.auto_assign()
         room.build_players()
         room.state = 'playing'
-
         await self._broadcast('game_started_msg', {
-            'state':         room.game_state(),
+            'state': room.game_state(),
             'selected_cols': room.selected_cols,
-            'map':           _map_payload(),
+            'map': _map_payload(),
         })
-
         room.tick_task = asyncio.ensure_future(
             _game_loop(room_code, self.channel_layer)
         )
@@ -179,29 +177,25 @@ class LadderConsumer(AsyncWebsocketConsumer):
     # ── Channel-layer event receivers ──────────────────────────────────────────
     async def player_left_msg(self, event: dict) -> None:
         await self._send({'type': 'player_left',
-                          'player_id': event['player_id'],
-                          'players':   event['players']})
+                          'player_id': event['player_id'], 'players': event['players']})
 
     async def player_joined_msg(self, event: dict) -> None:
         if event.get('player_id') != self.player_id:
             await self._send({'type': 'player_joined', 'players': event['players']})
 
     async def selecting_msg(self, event: dict) -> None:
-        await self._send({'type': 'selecting',
-                          'countdown': event['countdown'],
-                          'map':       event['map']})
+        await self._send({'type': 'selecting', 'countdown': event['countdown'], 'map': event['map']})
 
     async def start_selected_msg(self, event: dict) -> None:
         await self._send({'type': 'start_selected',
-                          'player_id':     event['player_id'],
-                          'col':           event['col'],
+                          'player_id': event['player_id'], 'col': event['col'],
                           'selected_cols': event['selected_cols']})
 
     async def game_started_msg(self, event: dict) -> None:
         await self._send({'type': 'game_started',
-                          'state':         event['state'],
+                          'state': event['state'],
                           'selected_cols': event['selected_cols'],
-                          'map':           event['map']})
+                          'map': event['map']})
 
     async def tick_msg(self, event: dict) -> None:
         await self._send({'type': 'tick', 'state': event['state']})
@@ -220,14 +214,11 @@ class LadderConsumer(AsyncWebsocketConsumer):
         await self.send(json.dumps(data, default=list))
 
     async def _broadcast(self, event_type: str, payload: dict) -> None:
-        await self.channel_layer.group_send(
-            self._grp(), {'type': event_type, **payload}
-        )
+        await self.channel_layer.group_send(self._grp(), {'type': event_type, **payload})
 
 
-# ── Standalone game loop ────────────────────────────────────────────────────────
+# ── Game loop ──────────────────────────────────────────────────────────────────
 async def _game_loop(room_code: str, channel_layer) -> None:
-    """Runs detached from any consumer; ticks room and broadcasts state."""
     while True:
         await asyncio.sleep(TICK_INTERVAL)
         room = ROOMS.get(room_code)
@@ -242,8 +233,38 @@ async def _game_loop(room_code: str, channel_layer) -> None:
         )
 
         if room.state == 'finished':
+            results = room.results()
             await channel_layer.group_send(
                 f'ladder_{room_code}',
-                {'type': 'game_over_msg', 'results': room.results()}
+                {'type': 'game_over_msg', 'results': results}
             )
+            asyncio.ensure_future(_persist_ladder_scores(results))
             break
+
+
+async def _persist_ladder_scores(results: list[dict]) -> None:
+    """蘋果計分寫入全球排行榜（每顆蘋果 10 分）。"""
+    from channels.db import database_sync_to_async
+    from .models import GameMode, Score
+
+    @database_sync_to_async
+    def _save() -> None:
+        try:
+            mode, _ = GameMode.objects.get_or_create(
+                name='ladder',
+                defaults={'display_name': '爬梯競速'},
+            )
+            for r in results:
+                if r['apples_eaten'] > 0:
+                    Score.objects.create(
+                        nickname     = r['nickname'],
+                        mode         = mode,
+                        score        = r['apples_eaten'] * 10,
+                        apples_eaten = r['apples_eaten'],
+                        level_reached= None,
+                    )
+        except Exception as exc:
+            import logging
+            logging.getLogger('apps.leaderboard').warning('persist_ladder: %s', exc)
+
+    await _save()

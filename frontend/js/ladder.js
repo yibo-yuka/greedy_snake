@@ -1,17 +1,17 @@
 'use strict';
 /**
- * Ladder Race v2 — Frontend WebSocket Client + Canvas Renderer
- * ==============================================================
- * New design: 5 vertical tracks, horizontal rungs, fully automatic movement.
- * Players select starting column → program runs them automatically → rank by finish order.
+ * Ladder Race v2.1 — Frontend WebSocket Client + Clean Canvas
+ * ============================================================
+ * 5 vertical tracks, horizontal rungs, fully automatic movement.
+ * Players collect apples scattered on the map; rank by most apples eaten.
  *
  * Constants MUST match backend/apps/leaderboard/ladder.py
  */
 
-const NUM_COLS      = 5;
-const NUM_ROWS      = 20;
-const FINISH_ROW    = 0;
-const START_ROW     = 19;
+const NUM_COLS       = 5;
+const NUM_ROWS       = 20;
+const FINISH_ROW     = 0;
+const START_ROW      = 19;
 const SELECTION_SECS = 15;
 
 // Must match RUNGS in ladder.py: [row, col_left, col_right]
@@ -32,23 +32,20 @@ class LadderGame {
     this.roomCode     = null;
     this.isHost       = false;
     this.nickname     = '';
-    this.state        = 'idle'; // idle|lobby|selecting|playing|finished
+    this.state        = 'idle';
 
-    // Lobby
-    this.lobbyPlayers = [];       // [{pid, nickname, color, is_host}]
+    this.lobbyPlayers = [];
+    this.gamePlayers  = {};     // {pid → player_state}
+    this.gameApples   = [];     // [[col, row], ...]
+    this.selectedCols = {};     // {pid → col}
 
-    // Game
-    this.gamePlayers  = {};       // {pid → player_state}
-    this.selectedCols = {};       // {pid → col}
-
-    // Selection countdown
     this.selTimeLeft  = SELECTION_SECS;
     this._selTimer    = null;
 
-    // Canvas
     this.canvas  = document.getElementById('ladderCanvas');
     this.ctx     = this.canvas?.getContext('2d');
-    this.cellSz  = 32;
+    this.colW    = 60;  // pixels per column
+    this.rowH    = 30;  // pixels per row
     this.rafId   = null;
 
     this._bindEvents();
@@ -64,23 +61,22 @@ class LadderGame {
                       .replace('http://',  'ws://');
     const wsUrl  = `${wsBase}/ws/ladder/`;
     console.log('[Ladder] connecting to', wsUrl);
-
-    this.ws            = new WebSocket(wsUrl);
-    this.ws.onopen     = ()  => console.log('[Ladder] WS open');
-    this.ws.onmessage  = (e) => this._dispatch(JSON.parse(e.data));
-    this.ws.onclose    = ()  => this._onClose();
-    this.ws.onerror    = (e) => { console.error('[Ladder] WS error', e); };
+    this.ws           = new WebSocket(wsUrl);
+    this.ws.onopen    = ()  => console.log('[Ladder] WS open');
+    this.ws.onmessage = (e) => this._dispatch(JSON.parse(e.data));
+    this.ws.onclose   = ()  => this._onClose();
+    this.ws.onerror   = (e) => console.error('[Ladder] WS error', e);
   }
 
   send(data) {
-    if (this.ws?.readyState === WebSocket.OPEN)
-      this.ws.send(JSON.stringify(data));
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(data));
   }
 
   createRoom()     { this.send({ type: 'create_room', nickname: this.nickname }); }
   joinRoom(code)   { this.send({ type: 'join_room',   room_code: code, nickname: this.nickname }); }
   closeRoom()      { this.send({ type: 'close_room' }); }
   startGame()      { this.send({ type: 'start_game' }); }
+  forceStart()     { this.send({ type: 'force_start' }); }
   selectStart(col) { this.send({ type: 'select_start', col }); }
 
   disconnect() {
@@ -98,7 +94,7 @@ class LadderGame {
   // ── Message dispatcher ─────────────────────────────────────────────────────
 
   _dispatch(msg) {
-    const h = {
+    ({
       room_joined:    () => this._onRoomJoined(msg),
       player_joined:  () => this._onPlayerJoined(msg),
       player_left:    () => this._onPlayerLeft(msg),
@@ -109,11 +105,10 @@ class LadderGame {
       tick:           () => this._onTick(msg),
       game_over:      () => this._onGameOver(msg),
       error:          () => this._showErr(msg.message),
-    };
-    h[msg.type]?.();
+    })[msg.type]?.();
   }
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // ── Message handlers ───────────────────────────────────────────────────────
 
   _onRoomJoined(msg) {
     this.playerID     = msg.player_id;
@@ -147,8 +142,11 @@ class LadderGame {
     this.selectedCols = {};
     window.showScreen('ladder-game');
     this._initCanvas();
+    // Show HUD with player list
     document.getElementById('ladderHUD')?.classList.remove('hidden');
     this._renderHUDSelecting();
+    // Show host early-start button
+    document.getElementById('ladderSelHost')?.classList.toggle('hidden', !this.isHost);
     this._startSelTimer();
     this._renderLoop();
   }
@@ -161,6 +159,7 @@ class LadderGame {
     this.state        = 'playing';
     this.selectedCols = msg.selected_cols;
     clearInterval(this._selTimer);
+    document.getElementById('ladderSelHost')?.classList.add('hidden');
     this._applyGameState(msg.state);
     this._updateHUD();
   }
@@ -177,32 +176,30 @@ class LadderGame {
     window.showScreen('ladder-results');
   }
 
-  // ── State helpers ──────────────────────────────────────────────────────────
-
   _applyGameState(st) {
     this.gamePlayers = {};
     for (const p of st.players) this.gamePlayers[p.pid] = p;
+    this.gameApples  = st.apples || [];
   }
 
-  // ── Canvas ─────────────────────────────────────────────────────────────────
+  // ── Canvas initialisation ──────────────────────────────────────────────────
 
   _initCanvas() {
     if (!this.canvas) return;
     const wrap   = this.canvas.parentElement;
-    const availW = Math.max(160, (wrap?.clientWidth  || 320) - 16);
-    const availH = Math.max(400, window.innerHeight - 200);
-    const byW    = Math.floor(availW / NUM_COLS);
-    const byH    = Math.floor(availH / NUM_ROWS);
-    this.cellSz          = Math.max(18, Math.min(48, byW, byH));
-    this.canvas.width    = NUM_COLS * this.cellSz;
-    this.canvas.height   = NUM_ROWS * this.cellSz;
+    const availW = Math.max(240, (wrap?.clientWidth || 320) - 8);
+    const availH = Math.max(400, window.innerHeight - 210);
+    // colW: wide gaps between tracks; rowH: enough height per row
+    this.colW = Math.max(42, Math.min(76, Math.floor(availW / NUM_COLS)));
+    this.rowH = Math.max(22, Math.min(34, Math.floor(availH / NUM_ROWS)));
+    this.canvas.width  = NUM_COLS * this.colW;
+    this.canvas.height = NUM_ROWS * this.rowH;
   }
 
-  /** Center x of a track column. */
-  _tx(col) { return (col + 0.5) * this.cellSz; }
-
-  /** Center y of a row (row 0 = top). */
-  _ry(row) { return (row + 0.5) * this.cellSz; }
+  /** Pixel x of the centre of column `col`. */
+  _tx(col) { return col * this.colW + this.colW / 2; }
+  /** Pixel y of the centre of row `row` (row 0 = top/finish). */
+  _ry(row) { return row * this.rowH + this.rowH / 2; }
 
   _renderLoop() {
     cancelAnimationFrame(this.rafId);
@@ -214,130 +211,156 @@ class LadderGame {
     this.rafId = requestAnimationFrame(frame);
   }
 
+  // ── Main draw ─────────────────────────────────────────────────────────────
+
   _draw() {
     if (!this.ctx) return;
-    const ctx = this.ctx;
-    const sz  = this.cellSz;
-    const W   = this.canvas.width;
-    const H   = this.canvas.height;
+    const ctx  = this.ctx;
+    const cW   = this.colW;
+    const rH   = this.rowH;
+    const W    = this.canvas.width;
+    const H    = this.canvas.height;
 
     // ── Background ──────────────────────────────────────────────────────────
-    ctx.fillStyle = '#0a0f1a';
+    ctx.fillStyle = '#111827';
     ctx.fillRect(0, 0, W, H);
 
+    // ── Alternating column tints ─────────────────────────────────────────────
+    for (let c = 0; c < NUM_COLS; c += 2) {
+      ctx.fillStyle = 'rgba(255,255,255,0.025)';
+      ctx.fillRect(c * cW, 0, cW, H);
+    }
+
+    // ── Subtle row grid lines ────────────────────────────────────────────────
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth   = 1;
+    for (let r = 1; r < NUM_ROWS; r++) {
+      ctx.beginPath();
+      ctx.moveTo(0, r * rH);
+      ctx.lineTo(W, r * rH);
+      ctx.stroke();
+    }
+
     // ── Finish zone ─────────────────────────────────────────────────────────
-    ctx.fillStyle = 'rgba(255,210,50,0.10)';
-    ctx.fillRect(0, 0, W, sz);
-    ctx.fillStyle = '#f7dc6f';
-    ctx.fillRect(0, 0, W, 3);
-    ctx.font         = `bold ${Math.max(10, sz * 0.38)}px Inter,sans-serif`;
-    ctx.fillStyle    = '#f7dc6f';
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+    ctx.fillRect(0, 0, W, rH);
+    ctx.fillStyle = '#22C55E';
+    ctx.fillRect(0, 0, W, 4);
+    ctx.font         = `bold ${Math.max(11, rH * 0.44)}px Inter, sans-serif`;
+    ctx.fillStyle    = '#22C55E';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏁  F I N I S H', W / 2, sz * 0.45);
+    ctx.fillText('🏁  FINISH', W / 2, rH / 2);
 
     // ── Start zone label ────────────────────────────────────────────────────
-    if (this.state === 'selecting') {
-      ctx.font         = `${Math.max(9, sz * 0.30)}px Inter,sans-serif`;
-      ctx.fillStyle    = 'rgba(255,255,255,0.45)';
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('▼ 點選下方格子選擇起始軌道 ▼', W / 2, this._ry(START_ROW) - sz * 0.7);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(0, START_ROW * rH, W, rH);
+    ctx.fillStyle    = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(0, START_ROW * rH, W, 2);
+
+    // ── Vertical track bars ──────────────────────────────────────────────────
+    const barW = Math.max(7, cW * 0.17);
+    for (let c = 0; c < NUM_COLS; c++) {
+      const cx   = this._tx(c);
+      const topY = rH * 0.92;
+      const botY = H - rH * 0.08;
+
+      ctx.fillStyle   = 'rgba(148, 163, 184, 0.22)';
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.50)';
+      ctx.lineWidth   = 1;
+      ctx.fillRect(  cx - barW / 2, topY, barW, botY - topY);
+      ctx.strokeRect(cx - barW / 2, topY, barW, botY - topY);
     }
 
-    // ── Vertical tracks ─────────────────────────────────────────────────────
-    for (let col = 0; col < NUM_COLS; col++) {
-      const cx   = this._tx(col);
-      const barW = sz * 0.20;
-      const topY = sz * 0.95;
-      const botY = H - sz * 0.05;
-
-      const grad = ctx.createLinearGradient(cx, topY, cx, botY);
-      grad.addColorStop(0, 'rgba(80,120,180,0.55)');
-      grad.addColorStop(1, 'rgba(40,60,100,0.35)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(cx - barW / 2, topY, barW, botY - topY);
+    // ── Column labels (1-5) at bottom ────────────────────────────────────────
+    ctx.font         = `${Math.max(9, rH * 0.32)}px Inter, sans-serif`;
+    ctx.fillStyle    = 'rgba(255,255,255,0.30)';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    for (let c = 0; c < NUM_COLS; c++) {
+      ctx.fillText(c + 1, this._tx(c), H - rH * 0.42);
     }
 
-    // ── Rungs + apples ──────────────────────────────────────────────────────
+    // ── Rungs (golden horizontal bridges) ────────────────────────────────────
+    const rungThick = Math.max(3, rH * 0.20);
+    ctx.lineCap = 'round';
     for (const [row, c1, c2] of RUNGS) {
       const x1 = this._tx(c1);
       const x2 = this._tx(c2);
       const ry  = this._ry(row);
 
-      // Rung bar (golden)
-      ctx.shadowColor = '#f7dc6f';
-      ctx.shadowBlur  = 5;
-      ctx.strokeStyle = '#b8860b';
-      ctx.lineWidth   = Math.max(3, sz * 0.13);
-      ctx.lineCap     = 'round';
+      ctx.strokeStyle = '#D4A017';
+      ctx.lineWidth   = rungThick;
       ctx.beginPath(); ctx.moveTo(x1, ry); ctx.lineTo(x2, ry); ctx.stroke();
-      ctx.shadowBlur  = 0;
 
-      // Apple (red circle, mid-rung)
-      const mx  = (x1 + x2) / 2;
-      const ar  = Math.max(4, sz * 0.16);
-      const grd = ctx.createRadialGradient(mx - ar * 0.3, ry - ar * 0.3, ar * 0.1, mx, ry, ar);
-      grd.addColorStop(0, '#ffbbbb');
-      grd.addColorStop(1, '#bb1111');
-      ctx.shadowColor = '#ff4444';
-      ctx.shadowBlur  = 6;
-      ctx.fillStyle   = grd;
-      ctx.beginPath(); ctx.arc(mx, ry, ar, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur  = 0;
+      // End-cap dots where rung meets track
+      ctx.fillStyle = '#D4A017';
+      const dotR = rungThick / 2 + 1;
+      ctx.beginPath(); ctx.arc(x1, ry, dotR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x2, ry, dotR, 0, Math.PI * 2); ctx.fill();
     }
 
-    // ── Selection phase: start squares ──────────────────────────────────────
+    // ── Apples (game state) ──────────────────────────────────────────────────
+    const appleR = Math.max(4, rH * 0.24);
+    for (const [ac, ar] of this.gameApples) {
+      const ax = this._tx(ac);
+      const ay = this._ry(ar);
+      // Body
+      ctx.fillStyle = '#DC2626';
+      ctx.beginPath(); ctx.arc(ax, ay, appleR, 0, Math.PI * 2); ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(ax - appleR * 0.32, ay - appleR * 0.32, appleR * 0.30, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Selection overlays ───────────────────────────────────────────────────
     if (this.state === 'selecting') {
-      this._drawStartSquares(ctx, sz);
+      this._drawStartSquares(ctx, cW, rH);
+      this._drawSelTokens(ctx, cW, rH);
+      this._drawCountdownBadge(ctx, W, rH);
     }
 
-    // ── Player tokens (game) ────────────────────────────────────────────────
+    // ── Player tokens ────────────────────────────────────────────────────────
     if (this.state === 'playing' || this.state === 'finished') {
-      this._drawPlayers(ctx, sz);
-    }
-
-    // ── Selection phase: show chosen token at their start ───────────────────
-    if (this.state === 'selecting') {
-      this._drawSelTokens(ctx, sz);
-    }
-
-    // ── Countdown overlay ───────────────────────────────────────────────────
-    if (this.state === 'selecting') {
-      this._drawCountdown(ctx, sz, W);
+      this._drawPlayers(ctx, cW, rH);
     }
   }
 
-  _drawStartSquares(ctx, sz) {
-    for (let col = 0; col < NUM_COLS; col++) {
-      const cx  = this._tx(col);
-      const cy  = this._ry(START_ROW);
-      const hw  = sz * 0.40;
+  // ── Selection drawing ──────────────────────────────────────────────────────
 
-      const takenPid = Object.entries(this.selectedCols).find(([, c]) => c === col && this.selectedCols[this.playerID] !== col)?.[0];
-      const isMe     = this.selectedCols[this.playerID] === col;
+  _drawStartSquares(ctx, cW, rH) {
+    for (let col = 0; col < NUM_COLS; col++) {
+      const cx    = this._tx(col);
+      const cy    = this._ry(START_ROW);
+      const hw    = cW * 0.38;
+
+      const takenBy = Object.entries(this.selectedCols)
+        .find(([pid, c]) => c === col && pid !== this.playerID)?.[0];
+      const isMe = this.selectedCols[this.playerID] === col;
 
       if (isMe) {
-        ctx.fillStyle   = 'rgba(0,255,136,0.35)';
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth   = 3;
-      } else if (takenPid) {
-        const info = this.lobbyPlayers.find(p => p.pid === takenPid);
-        ctx.fillStyle   = (info?.color || '#ff6b6b') + '44';
-        ctx.strokeStyle = info?.color || '#ff6b6b';
-        ctx.lineWidth   = 2;
-      } else {
-        ctx.fillStyle   = 'rgba(255,255,255,0.08)';
-        ctx.strokeStyle = 'rgba(255,255,255,0.40)';
+        ctx.fillStyle   = 'rgba(34,197,94,0.28)';
+        ctx.strokeStyle = '#22C55E';
+        ctx.lineWidth   = 2.5;
+      } else if (takenBy) {
+        const info = this.lobbyPlayers.find(p => p.pid === takenBy);
+        ctx.fillStyle   = (info?.color || '#aaa') + '28';
+        ctx.strokeStyle = info?.color || '#aaa';
         ctx.lineWidth   = 1.5;
+      } else {
+        ctx.fillStyle   = 'rgba(255,255,255,0.07)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.lineWidth   = 1;
       }
       ctx.fillRect(  cx - hw, cy - hw, hw * 2, hw * 2);
       ctx.strokeRect(cx - hw, cy - hw, hw * 2, hw * 2);
 
-      // Column index label
-      if (!this.selectedCols[this.playerID] && !Object.values(this.selectedCols).includes(col)) {
-        ctx.fillStyle    = 'rgba(255,255,255,0.50)';
-        ctx.font         = `${sz * 0.32}px Inter,sans-serif`;
+      // Show column number only if not taken
+      if (!Object.values(this.selectedCols).includes(col)) {
+        ctx.fillStyle    = 'rgba(255,255,255,0.38)';
+        ctx.font         = `${Math.max(10, cW * 0.28)}px Inter,sans-serif`;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(col + 1, cx, cy);
@@ -345,65 +368,87 @@ class LadderGame {
     }
   }
 
-  _drawSelTokens(ctx, sz) {
+  _drawSelTokens(ctx, cW, rH) {
     for (const [pid, col] of Object.entries(this.selectedCols)) {
       const info = this.lobbyPlayers.find(p => p.pid === pid);
       if (!info) continue;
       const cx = this._tx(col);
       const cy = this._ry(START_ROW);
-      const r  = sz * 0.27;
-      ctx.shadowColor = info.color;
-      ctx.shadowBlur  = 8;
-      ctx.fillStyle   = info.color;
+      const r  = cW * 0.25;
+      ctx.fillStyle = info.color;
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur  = 0;
-      ctx.fillStyle    = '#000';
-      ctx.font         = `bold ${sz * 0.27}px Inter,sans-serif`;
+      ctx.fillStyle    = '#fff';
+      ctx.font         = `bold ${Math.max(8, cW * 0.23)}px Inter,sans-serif`;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(info.nickname[0].toUpperCase(), cx, cy);
     }
   }
 
-  _drawCountdown(ctx, sz, W) {
-    const boxW = 220;
-    const boxH = 44;
-    const boxX = W / 2 - boxW / 2;
-    const boxY = sz * 1.15;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.82)';
-    this._rr(ctx, boxX, boxY, boxW, boxH, 8); ctx.fill();
-
-    ctx.font         = `bold 16px Inter,sans-serif`;
-    ctx.fillStyle    = '#f7dc6f';
+  _drawCountdownBadge(ctx, W, rH) {
+    const bW = 230, bH = 34;
+    const bX = (W - bW) / 2, bY = rH * 1.10;
+    ctx.fillStyle = 'rgba(17,24,39,0.92)';
+    this._rr(ctx, bX, bY, bW, bH, 6); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth   = 1;
+    this._rr(ctx, bX, bY, bW, bH, 6); ctx.stroke();
+    ctx.font         = `bold 14px Inter,sans-serif`;
+    ctx.fillStyle    = '#D4A017';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`⏱ 選擇起始軌道  ${this.selTimeLeft}s`, W / 2, boxY + boxH / 2);
+    ctx.fillText(`⏱  選擇起始軌道  ${this.selTimeLeft}s`, W / 2, bY + bH / 2);
   }
 
-  _drawPlayers(ctx, sz) {
+  // ── Player token drawing ───────────────────────────────────────────────────
+
+  _drawPlayers(ctx, cW, rH) {
     for (const player of Object.values(this.gamePlayers)) {
       const px   = this._tx(player.col);
       const py   = this._ry(player.row);
-      const r    = sz * 0.30;
+      const r    = Math.max(9, cW * 0.28);
       const isMe = player.pid === this.playerID;
 
-      ctx.shadowColor = player.color;
-      ctx.shadowBlur  = isMe ? 18 : 8;
-      ctx.fillStyle   = player.color;
+      // "Me" ring
+      if (isMe) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth   = 2;
+        ctx.beginPath(); ctx.arc(px, py, r + 3.5, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // Token circle
+      ctx.fillStyle = player.color;
       ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur  = 0;
+
+      // Dark inner ring for contrast
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.stroke();
 
       // Initial letter
       ctx.fillStyle    = '#000';
-      ctx.font         = `bold ${sz * 0.27}px Inter,sans-serif`;
+      ctx.font         = `bold ${Math.max(8, cW * 0.24)}px Inter,sans-serif`;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(player.nickname[0].toUpperCase(), px, py);
 
+      // Apple count badge (top-right of token)
+      if (player.apples_eaten > 0) {
+        const bx = px + r * 0.72;
+        const by = py - r * 0.72;
+        const br = Math.max(5, cW * 0.17);
+        ctx.fillStyle = '#DC2626';
+        ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle    = '#fff';
+        ctx.font         = `bold ${Math.max(7, br * 1.2)}px Inter,sans-serif`;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(player.apples_eaten, bx, by);
+      }
+
       // Finish medal above token
       if (player.finished) {
-        ctx.font         = `${sz * 0.45}px sans-serif`;
+        ctx.font         = `${Math.max(12, rH * 0.55)}px sans-serif`;
         ctx.textBaseline = 'bottom';
         ctx.fillText(MEDALS[(player.finish_rank || 1) - 1] ?? '🏅', px, py - r - 2);
         ctx.textBaseline = 'middle';
@@ -411,7 +456,7 @@ class LadderGame {
     }
   }
 
-  // ── Rounded rect path ──────────────────────────────────────────────────────
+  // ── Rounded-rect helper ────────────────────────────────────────────────────
 
   _rr(ctx, x, y, w, h, r) {
     ctx.beginPath();
@@ -429,9 +474,9 @@ class LadderGame {
   // ── HUD ────────────────────────────────────────────────────────────────────
 
   _renderHUDSelecting() {
-    const sEl = document.getElementById('ladderScores');
-    if (!sEl) return;
-    sEl.innerHTML = this.lobbyPlayers.map(p => `
+    const el = document.getElementById('ladderScores');
+    if (!el) return;
+    el.innerHTML = this.lobbyPlayers.map(p => `
       <div class="hud-player" style="border-left:3px solid ${p.color}">
         <span class="hud-name">${p.nickname}</span>
         ${p.is_host ? '<span class="hud-fin">主機</span>' : ''}
@@ -439,18 +484,15 @@ class LadderGame {
   }
 
   _updateHUD() {
-    const sEl = document.getElementById('ladderScores');
-    if (!sEl) return;
-    const sorted = Object.values(this.gamePlayers).sort((a, b) => {
-      if (a.finished && !b.finished) return -1;
-      if (!a.finished && b.finished) return 1;
-      if (a.finished && b.finished) return (a.finish_rank || 99) - (b.finish_rank || 99);
-      return a.row - b.row;  // closer to row 0 = closer to finish
-    });
-    sEl.innerHTML = sorted.map((p, i) => `
+    const el = document.getElementById('ladderScores');
+    if (!el) return;
+    const sorted = Object.values(this.gamePlayers)
+      .sort((a, b) => b.apples_eaten - a.apples_eaten || a.row - b.row);
+    el.innerHTML = sorted.map((p, i) => `
       <div class="hud-player" style="border-left:3px solid ${p.color}">
-        <span class="hud-rank">${p.finished ? MEDALS[(p.finish_rank||1)-1]||'🏅' : `${i+1}`}</span>
+        <span class="hud-rank">${p.finished ? MEDALS[(p.finish_rank||1)-1]||'🏅' : i+1}</span>
         <span class="hud-name">${p.nickname}</span>
+        <span class="hud-apple">🍎${p.apples_eaten}</span>
         ${p.finished ? '<span class="hud-fin">✓</span>' : ''}
       </div>`).join('');
   }
@@ -462,16 +504,12 @@ class LadderGame {
     document.getElementById('lbWaiting')?.classList.remove('hidden');
     const codeEl = document.getElementById('roomCodeDisplay');
     if (codeEl) codeEl.textContent = this.roomCode;
-
-    // Host-only buttons
     document.getElementById('btnStartGame')?.classList.toggle('hidden', !this.isHost);
     document.getElementById('btnCloseRoom')?.classList.toggle('hidden', !this.isHost);
-
     const hint = document.getElementById('lobbyHint');
     if (hint) hint.textContent = this.isHost
       ? '等待玩家加入…（至少 2 人才能開始，最多 5 人）'
       : '等待主機開始…';
-
     this._renderLobbyPlayers();
   }
 
@@ -489,6 +527,7 @@ class LadderGame {
   _resetLobbyUI() {
     document.getElementById('lbCreate')?.classList.remove('hidden');
     document.getElementById('lbWaiting')?.classList.add('hidden');
+    document.getElementById('ladderSelHost')?.classList.add('hidden');
   }
 
   // ── Results UI ─────────────────────────────────────────────────────────────
@@ -501,7 +540,8 @@ class LadderGame {
            style="border-left:4px solid ${r.color}">
         <span class="res-medal">${r.medal}</span>
         <span class="res-name">${r.nickname}</span>
-        <span class="res-status">${r.finished ? '🏁 完成' : '未完成'}</span>
+        <span class="res-score">🍎 ${r.apples_eaten}</span>
+        <span class="res-status">${r.finished ? '🏁' : ''}</span>
       </div>`).join('');
   }
 
@@ -533,17 +573,17 @@ class LadderGame {
 
   _bindEvents() {
 
-    // Canvas click → column selection
+    // Canvas click → choose start column
     this.canvas?.addEventListener('click', e => {
       if (this.state !== 'selecting') return;
-      const rect = this.canvas.getBoundingClientRect();
-      const scaleX = this.canvas.width / rect.width;
+      const rect  = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width  / rect.width;
+      const scaleY = this.canvas.height / rect.height;
       const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top)  * (this.canvas.height / rect.height);
-      // Only respond to clicks in the bottom-row area
-      const startCy = this._ry(START_ROW);
-      if (Math.abs(y - startCy) > this.cellSz * 0.65) return;
-      const col = Math.floor(x / this.cellSz);
+      const y = (e.clientY - rect.top)  * scaleY;
+      // Only respond to bottom-row area
+      if (Math.abs(y - this._ry(START_ROW)) > this.rowH * 0.60) return;
+      const col = Math.floor(x / this.colW);
       if (col >= 0 && col < NUM_COLS) this.selectStart(col);
     });
 
@@ -589,13 +629,22 @@ class LadderGame {
       }
     });
 
+    // ── Selection ──────────────────────────────────────────────────────────
+
+    document.getElementById('btnForceStart')?.addEventListener('click', () => {
+      if (this.isHost && this.state === 'selecting') {
+        this.forceStart();
+        document.getElementById('ladderSelHost')?.classList.add('hidden');
+      }
+    });
+
+    // ── Navigation ─────────────────────────────────────────────────────────
+
     document.getElementById('btnLadderBack')?.addEventListener('click', () => {
       this.disconnect();
       this._resetLobbyUI();
       window.showScreen('home');
     });
-
-    // ── Results ─────────────────────────────────────────────────────────────
 
     document.getElementById('btnPlayAgainLadder')?.addEventListener('click', () => {
       this.disconnect();

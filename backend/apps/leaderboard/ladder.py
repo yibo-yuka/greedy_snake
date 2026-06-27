@@ -1,43 +1,32 @@
 """
-爬梯競速 v2 — 自動移動競速版
-=============================
-地圖：5 條軌道（col 0-4），20 格高（row 0 = 終點頂部，row 19 = 起點底部）
-橫棧：連接相鄰軌道，玩家到達橫棧時自動橫越到另一條軌道
-每 tick 有 80% 機率前進一格（製造賽跑差距），先抵達 row 0 者勝
+爬梯競速 v2.1 — 自動移動競速版（含蘋果收集計分）
+=======================================================
+5 條軌道，20 格高，每 tick 80% 機率前進一格。
+蘋果隨機散落地圖，吃越多最終排名越高（同分以先到終點者優先）。
 """
 import random
 import string
-import time
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 NUM_COLS       = 5
 NUM_ROWS       = 20
-FINISH_ROW     = 0    # 終點在最上方
-START_ROW      = 19   # 起點在最下方
-TICK_INTERVAL  = 0.4  # 每 tick 間隔（秒）
-MOVE_PROB      = 0.8  # 每 tick 前進的機率（製造賽跑隨機性）
+FINISH_ROW     = 0
+START_ROW      = 19
+TICK_INTERVAL  = 0.4
+MOVE_PROB      = 0.80
 MAX_PLAYERS    = 5
-SELECTION_TIME = 15   # 選位倒數秒數
+SELECTION_TIME = 15
+APPLE_COUNT    = 10   # 地圖上同時存在的蘋果數
 
 PLAYER_COLORS = ['#00ff88', '#ff6b6b', '#4ecdc4', '#f7dc6f', '#c084fc']
 
-# ── 橫棧定義 ──────────────────────────────────────────────────────────────────
-# (row, col_left, col_right) — 在 row 行連接兩條相鄰軌道
+# ── 橫棧定義 (row, col_left, col_right) ────────────────────────────────────────
 RUNGS: list[tuple[int, int, int]] = [
-    (3,  0, 1),
-    (5,  3, 4),
-    (7,  1, 2),
-    (9,  2, 3),
-    (11, 0, 1),
-    (12, 3, 4),
-    (14, 1, 2),
-    (15, 2, 3),
-    (17, 0, 1),
-    (18, 1, 2),
-    (18, 3, 4),
+    (3,  0, 1), (5,  3, 4), (7,  1, 2), (9,  2, 3),
+    (11, 0, 1), (12, 3, 4), (14, 1, 2), (15, 2, 3),
+    (17, 0, 1), (18, 1, 2), (18, 3, 4),
 ]
 
-# Build rung lookup: (row, col) -> other_col
 RUNG_MAP: dict[tuple[int, int], int] = {}
 for _row, _c1, _c2 in RUNGS:
     RUNG_MAP[(_row, _c1)] = _c2
@@ -54,16 +43,18 @@ class Player:
         self.row          = START_ROW
         self.finished     = False
         self.finish_rank: int | None = None
+        self.apples_eaten = 0
 
     def to_dict(self) -> dict:
         return {
-            'pid':         self.pid,
-            'nickname':    self.nickname,
-            'color':       self.color,
-            'col':         self.col,
-            'row':         self.row,
-            'finished':    self.finished,
-            'finish_rank': self.finish_rank,
+            'pid':          self.pid,
+            'nickname':     self.nickname,
+            'color':        self.color,
+            'col':          self.col,
+            'row':          self.row,
+            'finished':     self.finished,
+            'finish_rank':  self.finish_rank,
+            'apples_eaten': self.apples_eaten,
         }
 
 
@@ -72,8 +63,9 @@ class LadderRoom:
     def __init__(self, room_code: str, host_id: str) -> None:
         self.room_code      = room_code
         self.host_id        = host_id
-        self.lobby: dict[str, dict]     = {}  # pid -> info dict
-        self.players: dict[str, Player] = {}  # pid -> Player (during game)
+        self.lobby: dict[str, dict]     = {}
+        self.players: dict[str, Player] = {}
+        self.apples: list[list[int]]    = []   # [[col, row], ...]
         self.selected_cols: dict[str, int] = {}
         self.state          = 'lobby'
         self.tick_task      = None
@@ -110,7 +102,6 @@ class LadderRoom:
         return True
 
     def auto_assign(self) -> None:
-        """Assign random columns to players who haven't selected."""
         used = set(self.selected_cols.values())
         available = [c for c in range(NUM_COLS) if c not in used]
         random.shuffle(available)
@@ -118,36 +109,63 @@ class LadderRoom:
             if pid not in self.selected_cols and available:
                 self.selected_cols[pid] = available.pop(0)
 
+    # ── Apple management ──────────────────────────────────────────────────────
+    def _spawn_apple(self) -> list[int] | None:
+        player_pos = {(p.col, p.row) for p in self.players.values()}
+        apple_pos  = {(a[0], a[1]) for a in self.apples}
+        occupied   = player_pos | apple_pos
+        candidates = [
+            (col, row)
+            for col in range(NUM_COLS)
+            for row in range(1, START_ROW)  # rows 1–18
+            if (col, row) not in occupied
+        ]
+        return list(random.choice(candidates)) if candidates else None
+
+    # ── Build players + apples ────────────────────────────────────────────────
     def build_players(self) -> None:
-        """Create Player objects from lobby + selected_cols."""
         for pid, info in self.lobby.items():
             col = self.selected_cols.get(pid, 0)
-            self.players[pid] = Player(
-                pid, info['nickname'], info['color'], col
-            )
+            self.players[pid] = Player(pid, info['nickname'], info['color'], col)
+        # Spawn initial apples
+        self.apples = []
+        for _ in range(APPLE_COUNT):
+            apple = self._spawn_apple()
+            if apple:
+                self.apples.append(apple)
 
     # ── Game tick ─────────────────────────────────────────────────────────────
     def tick(self) -> None:
-        """Move all unfinished players one step (with MOVE_PROB probability)."""
         for player in self.players.values():
             if player.finished:
                 continue
             if random.random() > MOVE_PROB:
-                continue  # pause this tick
+                continue  # 本 tick 不動
 
             player.row -= 1
 
-            # Rung traversal: automatically switch to connected track
+            # 橫棧：自動切換軌道
             key = (player.row, player.col)
             if key in RUNG_MAP:
                 player.col = RUNG_MAP[key]
 
-            # Finish check
+            # 終點判定
             if player.row <= FINISH_ROW:
                 player.row = FINISH_ROW
                 player.finished = True
                 self.finish_counter += 1
                 player.finish_rank = self.finish_counter
+
+            # 蘋果收集
+            for i, apple in enumerate(self.apples):
+                if apple[0] == player.col and apple[1] == player.row:
+                    player.apples_eaten += 1
+                    new_apple = self._spawn_apple()
+                    if new_apple:
+                        self.apples[i] = new_apple
+                    else:
+                        self.apples.pop(i)
+                    break
 
         if self.all_finished():
             self.state = 'finished'
@@ -156,22 +174,27 @@ class LadderRoom:
         return bool(self.players) and all(p.finished for p in self.players.values())
 
     def game_state(self) -> dict:
-        return {'players': [p.to_dict() for p in self.players.values()]}
+        return {
+            'players': [p.to_dict() for p in self.players.values()],
+            'apples':  self.apples,
+        }
 
     def results(self) -> list[dict]:
         medals = ['🥇', '🥈', '🥉', '🏅', '🏅']
+        # 主排序：吃最多蘋果；同分以先到終點者優先
         ranked = sorted(
             self.players.values(),
-            key=lambda p: p.finish_rank or 999
+            key=lambda p: (-p.apples_eaten, p.finish_rank or 999)
         )
         return [
             {
-                'rank':     i + 1,
-                'pid':      p.pid,
-                'nickname': p.nickname,
-                'color':    p.color,
-                'finished': p.finished,
-                'medal':    medals[i] if i < len(medals) else '🏅',
+                'rank':         i + 1,
+                'pid':          p.pid,
+                'nickname':     p.nickname,
+                'color':        p.color,
+                'finished':     p.finished,
+                'medal':        medals[i] if i < len(medals) else '🏅',
+                'apples_eaten': p.apples_eaten,
             }
             for i, p in enumerate(ranked)
         ]
