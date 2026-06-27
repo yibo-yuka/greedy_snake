@@ -199,8 +199,9 @@ class SnakeGame {
     this.particles  = [];
     this.deathParts = [];
     this.dying    = false;
-    this.turnsSinceApple = 0;   // combo counter
-    this.comboLabels     = [];  // floating ×2 text
+    this.turnsSinceApple = 0;   // turns since last apple (combo counter)
+    this.comboStreak     = 0;   // consecutive combo apples
+    this.comboLabels     = [];  // floating score text
     this.spawnApple();
   }
 
@@ -289,11 +290,22 @@ class SnakeGame {
   eatApple(pos) {
     this.applesEaten++;
 
-    // Combo: ≤1 direction change since last apple → score ×2
-    const isCombo = this.turnsSinceApple <= 1;
-    const pts     = SCORE_APPLE * (isCombo ? 2 : 1);
-    this.score   += pts;
-    this.turnsSinceApple = 0;   // reset counter
+    // ── Combo streak ──────────────────────────────────────────
+    // ≤1 direction change since last apple continues (or starts) the chain.
+    // comboStreak=0 → first apple in chain: score is base (no bonus yet)
+    // comboStreak=1 → second consecutive: ×2
+    // comboStreak=2 → third consecutive:  ×4  ... etc.
+    const withinOne = this.turnsSinceApple <= 1;
+    const pts       = SCORE_APPLE * Math.pow(2, this.comboStreak);
+    this.score     += pts;
+
+    // Update streak for NEXT apple
+    if (withinOne) {
+      this.comboStreak++;          // extend chain
+    } else {
+      this.comboStreak = 0;        // chain broken
+    }
+    this.turnsSinceApple = 0;      // reset turn counter
 
     // Particle burst at apple position
     const cx = (pos.x + 0.5) * this.cellSize;
@@ -302,9 +314,16 @@ class SnakeGame {
       this.particles.push(new Particle(cx, cy, 'eat'));
     }
 
-    // Floating combo label
-    if (isCombo) {
-      this.comboLabels.push({ x: cx, y: cy - this.cellSize * 0.3, text: `+${pts} ×2`, opacity: 1.0, vy: -1.6 });
+    // Floating score label (golden, only when > base score)
+    if (pts > SCORE_APPLE) {
+      this.comboLabels.push({
+        x:       cx,
+        y:       cy - this.cellSize * 0.3,
+        text:    `+${pts}`,
+        opacity: 1.0,
+        vy:      -1.6,
+        size:    Math.min(this.comboStreak, 4),  // visual weight by streak depth
+      });
     }
 
     // Accelerate game tick
@@ -417,16 +436,17 @@ class SnakeGame {
       this.drawSnake();
     }
 
-    // Floating combo labels (×2)
+    // Floating combo labels
     this.comboLabels = this.comboLabels.filter(lbl => lbl.opacity > 0);
     if (this.comboLabels.length) {
       ctx.save();
-      ctx.textAlign = 'center';
+      ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      const fs = Math.max(13, Math.round(this.cellSize * 0.85));
-      ctx.font = `bold ${fs}px 'Orbitron', 'Rajdhani', monospace`;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur   = 14;
       for (const lbl of this.comboLabels) {
+        const scale = 0.80 + lbl.size * 0.12;  // bigger font for deeper streaks
+        const fs    = Math.max(13, Math.round(this.cellSize * scale));
+        ctx.font         = `bold ${fs}px 'Orbitron', 'Rajdhani', monospace`;
         ctx.globalAlpha  = lbl.opacity;
         ctx.shadowColor  = '#ffd700';
         ctx.fillStyle    = '#ffd700';
