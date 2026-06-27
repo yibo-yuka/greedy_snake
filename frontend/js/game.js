@@ -1166,35 +1166,8 @@ class App {
       }
     }, { passive: false });
 
-    // ── D-pad Buttons ─────────────────────────────────
-    const DPAD_MAP = {
-      up:    DIR.UP,
-      down:  DIR.DOWN,
-      left:  DIR.LEFT,
-      right: DIR.RIGHT,
-    };
-
-    document.querySelectorAll('.dp[data-dir]').forEach(btn => {
-      const dir = DPAD_MAP[btn.dataset.dir];
-      if (!dir) return;
-
-      // touchstart for immediate response
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        if (this.game?.running && !this.game.paused) {
-          this.game.setDirection(dir);
-          btn.classList.add('pressed');
-          setTimeout(() => btn.classList.remove('pressed'), 100);
-        }
-      }, { passive: false });
-
-      // mousedown fallback for desktop testing
-      btn.addEventListener('mousedown', () => {
-        if (this.game?.running && !this.game.paused) {
-          this.game.setDirection(dir);
-        }
-      });
-    });
+    // ── D-pad replaced by VirtualJoystick (see VirtualJoystick class) ────
+    // Joystick is initialised in App constructor after DOM ready.
 
     // ── Window Resize ─────────────────────────────────
     window.addEventListener('resize', () => {
@@ -1219,6 +1192,141 @@ class App {
   }
 }
 
+
+/* ==========================================================
+   Virtual Joystick
+   ========================================================== */
+class VirtualJoystick {
+  /**
+   * @param {App} app
+   */
+  constructor(app) {
+    this.app       = app;
+    this.container = document.getElementById('joystickContainer');
+    this.base      = document.getElementById('joystickBase');
+    this.knob      = document.getElementById('joystickKnob');
+    this.active    = false;
+    this.centerX   = 0;
+    this.centerY   = 0;
+    this.maxTravel = 38;  // max knob displacement from centre (px)
+    this.threshold = 15;  // min drag distance to register a direction
+    if (this.base) {
+      this._bind();
+      this._loadSide();
+    }
+  }
+
+  _loadSide() {
+    const side = localStorage.getItem('joystick_side') || 'right';
+    this.container?.classList.remove('joy-left', 'joy-right');
+    this.container?.classList.add(`joy-${side}`);
+    document.getElementById('joySetLeft') ?.classList.toggle('joy-active', side === 'left');
+    document.getElementById('joySetRight')?.classList.toggle('joy-active', side === 'right');
+  }
+
+  _setSide(side) {
+    localStorage.setItem('joystick_side', side);
+    this._loadSide();
+  }
+
+  _bind() {
+    const base = this.base;
+
+    // ── Touch events ────────────────────────────────────────
+    base.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this._startDrag(e.touches[0]);
+    }, { passive: false });
+
+    base.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (this.active) this._moveDrag(e.touches[0]);
+    }, { passive: false });
+
+    base.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      this._endDrag();
+    }, { passive: false });
+
+    base.addEventListener('touchcancel', () => this._endDrag());
+
+    // ── Mouse fallback (desktop testing) ────────────────────
+    base.addEventListener('mousedown', (e) => { e.preventDefault(); this._startDrag(e); });
+    window.addEventListener('mousemove', (e) => { if (this.active) this._moveDrag(e); });
+    window.addEventListener('mouseup',   ()  => { if (this.active) this._endDrag(); });
+
+    // ── Settings cog ────────────────────────────────────────
+    document.getElementById('btnJoySettings')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('joySettingsPanel')?.classList.toggle('hidden');
+    });
+
+    document.getElementById('joySetLeft')?.addEventListener('click', () => {
+      this._setSide('left');
+      document.getElementById('joySettingsPanel')?.classList.add('hidden');
+    });
+
+    document.getElementById('joySetRight')?.addEventListener('click', () => {
+      this._setSide('right');
+      document.getElementById('joySettingsPanel')?.classList.add('hidden');
+    });
+
+    // Dismiss settings panel on outside click
+    document.addEventListener('pointerdown', (e) => {
+      const panel = document.getElementById('joySettingsPanel');
+      const cog   = document.getElementById('btnJoySettings');
+      if (panel && !panel.classList.contains('hidden') &&
+          !panel.contains(e.target) && e.target !== cog) {
+        panel.classList.add('hidden');
+      }
+    });
+  }
+
+  _startDrag(pt) {
+    this.active = true;
+    const rect  = this.base.getBoundingClientRect();
+    this.centerX = rect.left + rect.width  / 2;
+    this.centerY = rect.top  + rect.height / 2;
+    this.knob?.classList.add('dragging');
+    document.getElementById('joySettingsPanel')?.classList.add('hidden');
+  }
+
+  _moveDrag(pt) {
+    if (!this.active || !this.knob) return;
+    const dx   = pt.clientX - this.centerX;
+    const dy   = pt.clientY - this.centerY;
+    const dist = Math.hypot(dx, dy);
+
+    // Clamp knob within base
+    const travel = Math.min(dist, this.maxTravel);
+    const angle  = Math.atan2(dy, dx);
+    const kx = Math.cos(angle) * travel;
+    const ky = Math.sin(angle) * travel;
+    this.knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+
+    // Register direction only past threshold
+    if (dist < this.threshold) return;
+    const deg = angle * (180 / Math.PI);
+    let dir;
+    if      (deg > -45  && deg <=  45)  dir = DIR.RIGHT;
+    else if (deg >  45  && deg <= 135)  dir = DIR.DOWN;
+    else if (deg > 135  || deg <= -135) dir = DIR.LEFT;
+    else                                 dir = DIR.UP;
+
+    if (this.app.game?.running && !this.app.game.paused) {
+      this.app.game.setDirection(dir);
+    }
+  }
+
+  _endDrag() {
+    this.active = false;
+    if (this.knob) {
+      this.knob.classList.remove('dragging');
+      this.knob.style.transform = 'translate(-50%, -50%)';
+    }
+  }
+}
+
 /* ==========================================================
    Boot
    ========================================================== */
@@ -1227,6 +1335,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.snakeApp = new App();
   // Expose showScreen globally for ladder.js (non-module) to call
   window.showScreen = (id) => window.snakeApp.showScreen(id);
+
+  // Virtual joystick (shows on mobile game screen)
+  window.snakeApp.joystick = new VirtualJoystick(window.snakeApp);
 
   // Check backend & load leaderboard on home screen
   window.snakeApp.refreshLeaderboard('infinite');

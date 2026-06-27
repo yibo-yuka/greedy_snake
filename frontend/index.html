@@ -210,14 +210,23 @@
       </div>
     </div>
 
-    <!-- Mobile D-pad -->
-    <div class="mobile-ctrl" id="mobileControls" style="display:none" aria-label="方向控制">
-      <div class="dpad" role="group" aria-label="D-pad 方向鍵">
-        <button class="dp dp-up"    data-dir="up"    aria-label="上">▲</button>
-        <button class="dp dp-left"  data-dir="left"  aria-label="左">◄</button>
-        <div    class="dp dp-mid"   aria-hidden="true"></div>
-        <button class="dp dp-right" data-dir="right" aria-label="右">►</button>
-        <button class="dp dp-down"  data-dir="down"  aria-label="下">▼</button>
+    <!-- Virtual Joystick (replaces D-pad) -->
+    <div class="mobile-ctrl" id="mobileControls" style="display:none" aria-label="虛擬搖桿">
+      <div class="joystick-container joy-right" id="joystickContainer">
+        <!-- Settings panel (floats above, hidden by default) -->
+        <div class="joy-settings-panel hidden" id="joySettingsPanel" role="dialog" aria-label="搖桿設定">
+          <p class="joy-set-label">🕹 搖桿位置</p>
+          <div class="joy-side-btns">
+            <button class="joy-side-btn" id="joySetLeft">⬅ 左下</button>
+            <button class="joy-side-btn" id="joySetRight">右下 ➡</button>
+          </div>
+        </div>
+        <!-- Settings cog -->
+        <button class="joy-cfg-btn" id="btnJoySettings" aria-label="搖桿設定">⚙</button>
+        <!-- Joystick base + knob -->
+        <div class="joystick-base" id="joystickBase" aria-label="虛擬搖桿，拖曳控制方向">
+          <div class="joystick-knob" id="joystickKnob"></div>
+        </div>
       </div>
     </div>
 

@@ -809,51 +809,151 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   to   { transform: scale(1); opacity: 1; }
 }
 
-/* Mobile D-pad */
+/* ── Virtual Joystick ────────────────────────────────────── */
+
+/* Full-screen transparent overlay — only the joystick itself is interactive */
 .mobile-ctrl {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 6px 16px 10px;
-  height: 148px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  height: auto;
 }
 
-.dpad {
-  display: grid;
-  grid-template-columns: repeat(3, 50px);
-  grid-template-rows: repeat(3, 50px);
-  gap: 5px;
-}
-
-.dp {
+/* Corner container */
+.joystick-container {
+  position: absolute;
+  bottom: max(18px, env(safe-area-inset-bottom, 18px));
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-sm);
-  color: var(--c-text2);
-  font-size: 1.05rem;
-  transition: all 0.08s;
+  gap: 6px;
+  pointer-events: auto;
   user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
 }
 
-.dp:active,
-.dp.pressed {
-  background: var(--c-green-glow);
-  border-color: var(--c-border-green);
-  color: var(--c-green);
-  transform: scale(0.9);
-  box-shadow: 0 0 10px var(--c-green-glow);
+.joystick-container.joy-right { right: 20px; }
+.joystick-container.joy-left  { left:  20px; }
+
+/* Settings panel — floats above the cog button */
+.joy-settings-panel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  background: rgba(5, 5, 16, 0.94);
+  border: 1px solid rgba(57, 255, 20, 0.22);
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-align: center;
+  width: 150px;
+  z-index: 60;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.50);
+  animation: panelFadeIn 0.15s ease;
 }
 
-.dp-up    { grid-column: 2; grid-row: 1; }
-.dp-left  { grid-column: 1; grid-row: 2; }
-.dp-mid   { grid-column: 2; grid-row: 2; pointer-events: none; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.04); }
-.dp-right { grid-column: 3; grid-row: 2; }
-.dp-down  { grid-column: 2; grid-row: 3; }
+.joystick-container.joy-right .joy-settings-panel { right: 0; }
+.joystick-container.joy-left  .joy-settings-panel { left:  0; }
+
+@keyframes panelFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.joy-set-label {
+  font-size: 0.73rem;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 9px;
+  letter-spacing: 0.06em;
+}
+
+.joy-side-btns {
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+}
+
+.joy-side-btn {
+  font-size: 0.73rem;
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(57,255,20,0.22);
+  background: rgba(57,255,20,0.05);
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.joy-side-btn.joy-active {
+  background: rgba(57,255,20,0.20);
+  border-color: rgba(57,255,20,0.65);
+  color: #39ff14;
+}
+
+/* Settings cog */
+.joy-cfg-btn {
+  font-size: 14px;
+  color: rgba(255,255,255,0.25);
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: color 0.2s;
+  line-height: 1;
+}
+.joy-cfg-btn:hover { color: rgba(255,255,255,0.60); }
+
+/* Joystick base ring */
+.joystick-base {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  border: 2px solid rgba(57, 255, 20, 0.20);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  touch-action: none;
+  box-shadow: 0 0 20px rgba(0,0,0,0.30);
+}
+
+/* Inner target ring (visual guide) */
+.joystick-base::after {
+  content: '';
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 1px solid rgba(57,255,20,0.12);
+  pointer-events: none;
+}
+
+/* Draggable knob */
+.joystick-knob {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 36%,
+    rgba(57,255,20,0.80) 0%,
+    rgba(18,140,6,0.90)  100%
+  );
+  border: 2px solid rgba(57,255,20,0.75);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow:
+    0 0 14px rgba(57,255,20,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+  transition: transform 0.10s cubic-bezier(0.34,1.56,0.64,1); /* spring snap-back */
+}
+
+.joystick-knob.dragging {
+  transition: none;  /* no transition while actively dragging */
+}
+
+
 
 /* ============================================================
    GAME OVER SCREEN
@@ -1006,13 +1106,10 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 /* Small height (landscape mobile) */
 @media (max-height: 640px) and (pointer: coarse) {
   .game-hud { height: 44px; }
-  .mobile-ctrl { height: 116px; }
-  .dpad {
-    grid-template-columns: repeat(3, 40px);
-    grid-template-rows: repeat(3, 40px);
-  }
-  .dp { font-size: 0.9rem; }
+  .joystick-base { width: 108px; height: 108px; }
+  .joystick-knob { width: 48px;  height: 48px;  }
 }
+
 
 /* Very small screens */
 @media (max-width: 360px) {
