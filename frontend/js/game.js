@@ -134,7 +134,8 @@ class Particle {
    SnakeGame — Canvas Engine
    ========================================================== */
 class SnakeGame {
-  constructor() {
+  constructor(gridSize = GRID_SIZE) {
+    this.gridSize = gridSize;   // dynamic grid (10/15/20)
     this.canvas   = document.getElementById('gameCanvas');
     this.ctx      = this.canvas.getContext('2d');
 
@@ -179,12 +180,12 @@ class SnakeGame {
     const size      = Math.floor(Math.min(r.width - 8, maxH, 524));
     this.canvas.width  = size;
     this.canvas.height = size;
-    this.cellSize      = size / GRID_SIZE;
+    this.cellSize      = size / this.gridSize;
   }
 
   /** Initialize snake and apple to starting state */
   reset() {
-    const mid = Math.floor(GRID_SIZE / 2);
+    const mid = Math.floor(this.gridSize / 2);
     this.snake = [
       { x: mid + 2, y: mid },
       { x: mid + 1, y: mid },
@@ -206,8 +207,8 @@ class SnakeGame {
     let pos;
     do {
       pos = {
-        x: Math.floor(Math.random() * GRID_SIZE),
-        y: Math.floor(Math.random() * GRID_SIZE),
+        x: Math.floor(Math.random() * this.gridSize),
+        y: Math.floor(Math.random() * this.gridSize),
       };
     } while (occupied.has(`${pos.x},${pos.y}`));
     this.apple = pos;
@@ -253,8 +254,8 @@ class SnakeGame {
 
     const head = this.snake[0];
     const next = {
-      x: (head.x + this.dir.x + GRID_SIZE) % GRID_SIZE,
-      y: (head.y + this.dir.y + GRID_SIZE) % GRID_SIZE,
+      x: (head.x + this.dir.x + this.gridSize) % this.gridSize,
+      y: (head.y + this.dir.y + this.gridSize) % this.gridSize,
     };
 
     // Self collision check
@@ -362,8 +363,8 @@ class SnakeGame {
 
     // Cell grid — clear rounded-rect border for every cell
     ctx.save();
-    const gridCols = this.gridCols ?? GRID_SIZE;
-    const gridRows = this.gridRows ?? GRID_SIZE;
+    const gridCols = this.gridSize;
+    const gridRows = this.gridSize;
     for (let row = 0; row < gridRows; row++) {
       for (let col = 0; col < gridCols; col++) {
         const bx  = col * c;
@@ -543,14 +544,33 @@ class SnakeGame {
    Extends SnakeGame with level progression + obstacles
    ========================================================== */
 class LevelSnakeGame extends SnakeGame {
-  constructor() {
-    super();
+  constructor(gridSize = GRID_SIZE) {
+    super(gridSize);
     this.currentLevel    = 1;
     this.applesNeeded    = this._calcApplesNeeded(1);
     this.applesThisLevel = 0;
     this.obstacles       = [];
     this.levelBonus      = 0;
     this.transitioning   = false;
+  }
+
+  // ── Override spawnApple: also exclude obstacle cells ──────
+  spawnApple() {
+    const occupiedSnake = new Set(this.snake.map(s => `${s.x},${s.y}`));
+    const occupiedObs   = new Set((this.obstacles || []).map(o => `${o.x},${o.y}`));
+    let pos;
+    let tries = 0;
+    do {
+      pos = {
+        x: Math.floor(Math.random() * this.gridSize),
+        y: Math.floor(Math.random() * this.gridSize),
+      };
+      tries++;
+    } while (
+      (occupiedSnake.has(`${pos.x},${pos.y}`) || occupiedObs.has(`${pos.x},${pos.y}`)) &&
+      tries < 400
+    );
+    this.apple = pos;
   }
 
   // ── Config ─────────────────────────────────────
@@ -565,7 +585,7 @@ class LevelSnakeGame extends SnakeGame {
   _genObstacles(level) {
     if (level < 3) return [];
     const count   = Math.min((level - 2) * 2, 14);
-    const mid     = Math.floor(GRID_SIZE / 2);
+    const mid     = Math.floor(this.gridSize / 2);
     const blocked = new Set([
       ...this.snake.map(s => `${s.x},${s.y}`),
       `${this.apple.x},${this.apple.y}`,
@@ -574,8 +594,8 @@ class LevelSnakeGame extends SnakeGame {
     let attempts = 0;
     while (obs.length < count && attempts < 300) {
       attempts++;
-      const x = Math.floor(Math.random() * GRID_SIZE);
-      const y = Math.floor(Math.random() * GRID_SIZE);
+      const x = Math.floor(Math.random() * this.gridSize);
+      const y = Math.floor(Math.random() * this.gridSize);
       if (Math.abs(x - mid) <= 2 && Math.abs(y - mid) <= 2) continue; // keep spawn clear
       const k = `${x},${y}`;
       if (!blocked.has(k)) { blocked.add(k); obs.push({ x, y }); }
@@ -607,8 +627,8 @@ class LevelSnakeGame extends SnakeGame {
     this.dir = { ...this.nextDir };
     const head = this.snake[0];
     const next = {
-      x: (head.x + this.dir.x + GRID_SIZE) % GRID_SIZE,
-      y: (head.y + this.dir.y + GRID_SIZE) % GRID_SIZE,
+      x: (head.x + this.dir.x + this.gridSize) % this.gridSize,
+      y: (head.y + this.dir.y + this.gridSize) % this.gridSize,
     };
     if (this.snake.some(s => s.x === next.x && s.y === next.y)) { this.triggerDeath(); return; }
     if (this.obstacles.some(o => o.x === next.x && o.y === next.y)) { this.triggerDeath(); return; }
@@ -686,7 +706,7 @@ class LevelSnakeGame extends SnakeGame {
     this.speed           = this._calcBaseSpeed(this.currentLevel);
 
     // Reset snake to centre
-    const mid = Math.floor(GRID_SIZE / 2);
+    const mid = Math.floor(this.gridSize / 2);
     this.snake   = [
       { x: mid + 2, y: mid }, { x: mid + 1, y: mid }, { x: mid, y: mid },
     ];
@@ -765,6 +785,7 @@ class App {
     this.pendingMode   = null;
     this.currentMode   = 'infinite';
     this._gameOverLevel = null;
+    this.gridSize      = parseInt(localStorage.getItem('snake_grid_size') || '20');
 
     this._bindAll();
     this._refreshHome();
@@ -875,7 +896,7 @@ class App {
     if (this.game) this.game.stop();
 
     // Create appropriate game instance
-    this.game = mode === 'level' ? new LevelSnakeGame() : new SnakeGame();
+    this.game = mode === 'level' ? new LevelSnakeGame(this.gridSize) : new SnakeGame(this.gridSize);
     this.game.init();
 
     setTimeout(() => {
@@ -922,14 +943,14 @@ class App {
     const badge = el('newRecordBadge');
     if (badge) badge.style.display = isNewRec ? 'block' : 'none';
 
-    // Show submit button if backend is configured
+    // Show submit button only if backend online AND this is a new personal record
     const submitRow = el('submitRow');
     const submitBtn = el('btnSubmitScore');
     const submitHint = el('submitHint');
     if (submitRow) {
       const isOffline = !window.SNAKE_CONFIG?.apiUrl;
-      // Only show if score > 0 and not guest-only flag
-      submitRow.style.display = (score > 0 && !isOffline) ? 'flex' : 'none';
+      // Only show if score > 0, online, AND it's a new personal best
+      submitRow.style.display = (score > 0 && !isOffline && isNewRec) ? 'flex' : 'none';
       if (submitBtn) submitBtn.disabled = false;
       if (submitHint) submitHint.textContent = '';
     }
@@ -1055,6 +1076,21 @@ class App {
       this.startGame(this.currentMode);
     });
 
+    // ── Grid Size Selector ─────────────────────────────────
+    const _applyGridSize = (size) => {
+      this.gridSize = size;
+      localStorage.setItem('snake_grid_size', String(size));
+      document.querySelectorAll('.grid-sel-btn').forEach(btn => {
+        const active = parseInt(btn.dataset.size) === size;
+        btn.classList.toggle('grid-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    };
+    _applyGridSize(this.gridSize);  // restore saved preference on boot
+    document.querySelectorAll('.grid-sel-btn').forEach(btn => {
+      btn.addEventListener('click', () => _applyGridSize(parseInt(btn.dataset.size)));
+    });
+
     // ── Nickname ──────────────────────────────────────
     const nickInput = document.getElementById('nicknameInput');
     nickInput?.addEventListener('input', () => {
@@ -1142,29 +1178,8 @@ class App {
       }
     });
 
-    // ── Touch / Swipe on Canvas ───────────────────────
-    let touchX = 0, touchY = 0;
-    const canvas = document.getElementById('gameCanvas');
-
-    canvas?.addEventListener('touchstart', (e) => {
-      touchX = e.touches[0].clientX;
-      touchY = e.touches[0].clientY;
-      e.preventDefault();
-    }, { passive: false });
-
-    canvas?.addEventListener('touchend', (e) => {
-      if (this.currentScreen !== 'game' || !this.game?.running) return;
-      const dx = e.changedTouches[0].clientX - touchX;
-      const dy = e.changedTouches[0].clientY - touchY;
-      const minSwipe = 22;
-      if (Math.abs(dx) < minSwipe && Math.abs(dy) < minSwipe) return;
-      e.preventDefault();
-      if (Math.abs(dx) >= Math.abs(dy)) {
-        this.game.setDirection(dx > 0 ? DIR.RIGHT : DIR.LEFT);
-      } else {
-        this.game.setDirection(dy > 0 ? DIR.DOWN : DIR.UP);
-      }
-    }, { passive: false });
+    // ── Touch / Swipe ── handled by VirtualJoystick on #screen-game ──────────
+    // (canvas-only swipe removed; full-screen drag now handled in VirtualJoystick._bind)
 
     // ── D-pad replaced by VirtualJoystick (see VirtualJoystick class) ────
     // Joystick is initialised in App constructor after DOM ready.
@@ -1230,28 +1245,39 @@ class VirtualJoystick {
   }
 
   _bind() {
-    const base = this.base;
+    // ── Full-screen touch on #screen-game ────────────────────
+    // The joystick knob is a visual indicator; the whole game screen is the control area.
+    const screen = document.getElementById('screen-game');
 
-    // ── Touch events ────────────────────────────────────────
-    base.addEventListener('touchstart', (e) => {
+    const _onStart = (e) => {
+      // Only when game is running and not paused
+      if (!window.snakeApp?.game?.running || window.snakeApp?.game?.paused) return;
+      // Ignore touches on UI overlays and settings
+      if (e.target.closest('.game-hud, #pauseOverlay, #levelCompleteOverlay, .joy-cfg-btn, .joy-settings-panel')) return;
       e.preventDefault();
       this._startDrag(e.touches[0]);
-    }, { passive: false });
+    };
 
-    base.addEventListener('touchmove', (e) => {
+    const _onMove = (e) => {
+      if (!this.active) return;
       e.preventDefault();
-      if (this.active) this._moveDrag(e.touches[0]);
-    }, { passive: false });
+      this._moveDrag(e.touches[0]);
+    };
 
-    base.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      this._endDrag();
-    }, { passive: false });
+    const _onEnd = () => { if (this.active) this._endDrag(); };
 
-    base.addEventListener('touchcancel', () => this._endDrag());
+    screen?.addEventListener('touchstart',  _onStart, { passive: false });
+    screen?.addEventListener('touchmove',   _onMove,  { passive: false });
+    screen?.addEventListener('touchend',    _onEnd);
+    screen?.addEventListener('touchcancel', _onEnd);
 
-    // ── Mouse fallback (desktop testing) ────────────────────
-    base.addEventListener('mousedown', (e) => { e.preventDefault(); this._startDrag(e); });
+    // ── Mouse fallback for desktop testing ──────────────────
+    document.addEventListener('mousedown', (e) => {
+      if (window.snakeApp?.currentScreen !== 'game') return;
+      if (!window.snakeApp?.game?.running || window.snakeApp?.game?.paused) return;
+      if (e.target.closest('.game-hud, #pauseOverlay, button')) return;
+      this._startDrag(e);
+    });
     window.addEventListener('mousemove', (e) => { if (this.active) this._moveDrag(e); });
     window.addEventListener('mouseup',   ()  => { if (this.active) this._endDrag(); });
 
@@ -1284,9 +1310,9 @@ class VirtualJoystick {
 
   _startDrag(pt) {
     this.active = true;
-    const rect  = this.base.getBoundingClientRect();
-    this.centerX = rect.left + rect.width  / 2;
-    this.centerY = rect.top  + rect.height / 2;
+    // Use the touch/click point as the drag origin (full-screen mode)
+    this.centerX = pt.clientX;
+    this.centerY = pt.clientY;
     this.knob?.classList.add('dragging');
     document.getElementById('joySettingsPanel')?.classList.add('hidden');
   }

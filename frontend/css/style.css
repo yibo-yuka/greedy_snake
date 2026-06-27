@@ -463,6 +463,56 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   box-shadow: none;
 }
 
+/* ── Grid Size Selector ──────────────────────────────────── */
+.grid-selector {
+  max-width: 480px;
+  width: calc(100% - 40px);
+  margin: 14px auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.grid-sel-label {
+  font-size: 0.74rem;
+  color: var(--c-text2);
+  letter-spacing: 0.06em;
+}
+
+.grid-sel-btns {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.grid-sel-btn {
+  flex: 1;
+  padding: 9px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-card);
+  color: var(--c-text2);
+  font-size: 0.78rem;
+  font-family: var(--f-head);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.grid-sel-btn:hover {
+  border-color: var(--c-border-green);
+  color: var(--c-text);
+}
+
+.grid-sel-btn.grid-active,
+.grid-sel-btn[aria-pressed="true"] {
+  background: var(--c-green-glow2);
+  border-color: var(--c-border-green);
+  color: var(--c-green);
+  box-shadow: 0 0 8px var(--c-green-glow);
+}
+
 /* Leaderboard panel */
 .leaderboard-panel {
   max-width: 480px;
