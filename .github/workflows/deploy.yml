@@ -1,0 +1,76 @@
+name: Deploy to GCE
+
+on:
+  push:
+    branches: [main]
+
+# 確保同時只有一個部署在跑（避免競爭）
+concurrency:
+  group: deploy-gce
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: SSH Deploy to GCE
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # 取兩個 commit，用於 diff 判斷
+
+      - name: Detect changed files
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD 4..1 2>/dev/null || echo "backend/")
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -q '^backend/'; then
+            echo "backend=true" >> $GITHUB_OUTPUT
+          else
+            echo "backend=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.GCE_HOST }}
+          username: ${{ secrets.GCE_USER }}
+          key: ${{ secrets.GCE_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            set -e
+            cd /opt/greedy_snake
+
+            echo "=== [1/3] 拉取最新程式碼 ==="
+            sudo git pull origin main
+
+            # 只有後端有改動才做 docker cp + restart
+            BACKEND_CHANGED="${{ steps.changes.outputs.backend }}"
+            if [ "$BACKEND_CHANGED" = "true" ]; then
+              echo "=== [2/3] 更新後端容器檔案 ==="
+              sudo docker cp backend/apps/leaderboard/ladder.py \
+                backend-web-1:/app/apps/leaderboard/ladder.py
+
+              sudo docker cp backend/apps/leaderboard/consumers.py \
+                backend-web-1:/app/apps/leaderboard/consumers.py
+
+              sudo docker cp backend/greedy_snake/settings/base.py \
+                backend-web-1:/app/greedy_snake/settings/base.py
+
+              echo "=== [3/3] 重啟 web 容器 ==="
+              sudo docker compose \
+                -f /opt/greedy_snake/backend/docker-compose.gce.yml \
+                restart web
+
+              echo "--- 容器狀態 ---"
+              sudo docker compose \
+                -f /opt/greedy_snake/backend/docker-compose.gce.yml \
+                ps
+            else
+              echo "=== [2/3] 後端無變動，跳過容器更新 ==="
+              echo "=== [3/3] 前端靜態檔案已透過 git pull 自動更新 ==="
+            fi
+
+            echo "✅ Deploy 完成！"
