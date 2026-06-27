@@ -6,14 +6,16 @@
 
 'use strict';
 
-const CACHE_VER   = 'v1.0.0';
+const CACHE_VER   = 'v1.2.0';
 const CACHE_NAME  = `greedy-snake-${CACHE_VER}`;
 
 const PRECACHE_URLS = [
   './',
   './index.html',
   './css/style.css',
+  './js/config.js',
   './js/game.js',
+  './js/api.js',
   './manifest.json',
   './assets/icons/icon.svg',
   './assets/icons/icon-192.png',

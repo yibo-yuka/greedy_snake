@@ -1,0 +1,88 @@
+name: 🚀 Deploy Backend to GCE
+
+# ── Triggers ──────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'     # Only run when backend code changes
+  workflow_dispatch:     # Allow manual trigger from GitHub UI
+
+# ── Permissions ───────────────────────────────────────────────────────────
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: SSH Deploy → GCE
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Verify secrets are set ───────────────────────────────────────
+      - name: Verify required secrets
+        run: |
+          if [ -z "${{ secrets.GCE_SSH_HOST }}" ]; then
+            echo "::error::GCE_SSH_HOST secret is not set. Add it in Repo → Settings → Secrets."
+            exit 1
+          fi
+          if [ -z "${{ secrets.GCE_SSH_KEY }}" ]; then
+            echo "::error::GCE_SSH_KEY secret is not set. Add it in Repo → Settings → Secrets."
+            exit 1
+          fi
+          echo "✅ Secrets verified"
+
+      # ── 2. SSH into GCE and deploy ──────────────────────────────────────
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.GCE_SSH_HOST }}
+          username: ${{ secrets.GCE_SSH_USER }}
+          key:      ${{ secrets.GCE_SSH_KEY }}
+          port:     22
+          timeout:  120s
+          script_stop: true
+          script: |
+            set -euo pipefail
+            echo "=== 🐍 Greedy Snake Backend Deploy $(date) ==="
+
+            # Pull latest code
+            echo "→ Pulling latest code..."
+            git -C /opt/greedy_snake pull origin main
+
+            cd /opt/greedy_snake/backend
+
+            # Rebuild & restart
+            echo "→ Rebuilding Docker images..."
+            docker compose -f docker-compose.prod.yml build --no-cache web
+
+            echo "→ Restarting services..."
+            docker compose -f docker-compose.prod.yml up -d
+
+            echo "→ Waiting for services..."
+            sleep 12
+
+            # Migrations
+            echo "→ Running migrations..."
+            docker compose -f docker-compose.prod.yml exec -T web \
+              python manage.py migrate --noinput
+
+            # Static files
+            echo "→ Collecting static files..."
+            docker compose -f docker-compose.prod.yml exec -T web \
+              python manage.py collectstatic --noinput --clear
+
+            # Health check
+            echo "→ Health check..."
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              http://localhost:8000/api/health/ || echo "000")
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "::warning::Health check returned $HTTP_STATUS"
+            else
+              echo "✅ Health check passed (HTTP $HTTP_STATUS)"
+            fi
+
+            echo ""
+            echo "╔══════════════════════════════════╗"
+            echo "║  ✅ Deployment successful!       ║"
+            echo "╚══════════════════════════════════╝"
+            docker compose -f docker-compose.prod.yml ps
