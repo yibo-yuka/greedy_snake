@@ -73,13 +73,15 @@
         <div class="mode-shine" aria-hidden="true"></div>
       </div>
 
-      <div class="mode-card mode-soon" role="listitem" aria-label="爬梯競速 - 即將推出">
+      <div class="mode-card mode-active" id="btnLadderMode" role="listitem" tabindex="0"
+           aria-label="爬梯競速 - 多人對戰">
         <div class="mode-icon-wrap">🏆</div>
         <div class="mode-text">
           <h2>爬梯競速</h2>
           <p>2-4 人即時多人對戰</p>
         </div>
-        <span class="mode-badge badge-soon">即將推出</span>
+        <span class="mode-badge">遊玩</span>
+        <div class="mode-shine" aria-hidden="true"></div>
       </div>
 
     </main>
@@ -265,7 +267,89 @@
     </div>
   </div>
 
+  <!-- ─────────── LADDER LOBBY ─────────── -->
+  <div id="screen-ladder-lobby" class="screen" aria-label="爬梯競速大廳" aria-hidden="true">
+    <div class="ladder-lobby-wrap">
+      <div class="ladder-lobby-card">
+        <div class="ladder-logo">🏆 爬梯競速</div>
+
+        <!-- Create / Join section -->
+        <div id="lbCreate">
+          <div class="ladder-nickname-row">
+            <label for="ladderNickInput">你的暱稱</label>
+            <input type="text" id="ladderNickInput" placeholder="暱稱（最多16字）" maxlength="16" autocomplete="off">
+          </div>
+          <div class="lb-actions">
+            <button class="btn-primary" id="btnCreateRoom">🏠 建立房間</button>
+          </div>
+          <div class="lb-join-row">
+            <input type="text" id="joinCodeInput" placeholder="房間碼 ABCD" maxlength="4"
+                   style="text-transform:uppercase;letter-spacing:.15em">
+            <button class="btn-ghost" id="btnJoinRoom">🚪 加入</button>
+          </div>
+          <div id="ladderErrCreate" class="ladder-err hidden"></div>
+        </div>
+
+        <!-- Waiting room -->
+        <div id="lbWaiting" class="hidden">
+          <div class="room-code-display">
+            房間碼：<span id="roomCodeDisplay" class="room-code-val">----</span>
+          </div>
+          <div class="lobby-player-list" id="lobbyPlayerList"></div>
+          <button class="btn-primary" id="btnStartGame">🚀 開始遊戲</button>
+          <p class="lobby-hint" id="lobbyHint">等待主機開始…</p>
+        </div>
+
+        <button class="btn-ghost btn-back" id="btnLadderBack">← 返回主選單</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── LADDER GAME ─────────── -->
+  <div id="screen-ladder-game" class="screen" aria-label="爬梯競速遊戲" aria-hidden="true">
+    <div class="ladder-game-wrap">
+      <!-- HUD -->
+      <div class="ladder-hud hidden" id="ladderHUD">
+        <div class="hud-timer" id="ladderTimer">2:00</div>
+        <div class="hud-scores" id="ladderScores"></div>
+      </div>
+      <!-- Canvas -->
+      <div class="canvas-wrap">
+        <canvas id="ladderCanvas" aria-label="爬梯競速遊戲畫面"></canvas>
+      </div>
+      <!-- Mobile D-Pad -->
+      <div class="mobile-dpad" id="mobileDpad" aria-label="方向控制">
+        <div class="dpad-row">
+          <button class="dpad-btn" data-dir="up"    aria-label="上">▲</button>
+        </div>
+        <div class="dpad-row dpad-middle">
+          <button class="dpad-btn" data-dir="left"  aria-label="左">◄</button>
+          <div class="dpad-center"></div>
+          <button class="dpad-btn" data-dir="right" aria-label="右">►</button>
+        </div>
+        <div class="dpad-row">
+          <button class="dpad-btn" data-dir="down"  aria-label="下">▼</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── LADDER RESULTS ─────────── -->
+  <div id="screen-ladder-results" class="screen" aria-label="爬梯競速結果" aria-hidden="true">
+    <div class="center-wrapper">
+      <div class="results-card">
+        <div class="results-title">🏆 比賽結果</div>
+        <div class="results-list" id="ladderResultsList"></div>
+        <div class="results-actions">
+          <button class="btn-primary" id="btnPlayAgainLadder">🔄 再來一局</button>
+          <button class="btn-ghost"   id="btnResultsHome">🏠 回主選單</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="./js/config.js"></script>
+  <script src="./js/ladder.js"></script>
   <script type="module" src="./js/game.js"></script>
 </body>
 </html>

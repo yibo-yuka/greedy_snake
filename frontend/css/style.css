@@ -1240,4 +1240,148 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   min-height: 18px;
 }
 
+/* ==========================================================
+   PHASE 4 — LADDER RACE STYLES
+   ========================================================== */
+.hidden { display: none !important; }
 
+/* ── Ladder Lobby ────────────────────────────────────────── */
+.ladder-lobby-wrap {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; padding: 1rem;
+}
+.ladder-lobby-card {
+  background: rgba(15,20,35,0.95);
+  border: 1px solid rgba(0,255,136,0.2);
+  border-radius: 20px;
+  padding: 2rem 1.75rem;
+  width: 100%; max-width: 400px;
+  display: flex; flex-direction: column; gap: 1.25rem;
+  box-shadow: 0 0 40px rgba(0,255,136,0.08);
+}
+.ladder-logo {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.5rem; font-weight: 700;
+  color: var(--c-green); text-align: center;
+  letter-spacing: .08em;
+  text-shadow: 0 0 20px rgba(0,255,136,.4);
+}
+.ladder-nickname-row { display: flex; flex-direction: column; gap: .4rem; }
+.ladder-nickname-row label { font-size: .8rem; color: rgba(255,255,255,.6); font-weight: 500; }
+.ladder-nickname-row input, .lb-join-row input {
+  width: 100%; padding: .65rem 1rem;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px; color: #fff; font-size: .95rem;
+  outline: none; transition: border-color .2s;
+}
+.ladder-nickname-row input:focus, .lb-join-row input:focus {
+  border-color: var(--c-green);
+  box-shadow: 0 0 0 2px rgba(0,255,136,.15);
+}
+.lb-actions { display: flex; gap: .75rem; }
+.lb-actions .btn-primary { flex: 1; }
+.lb-join-row { display: flex; gap: .5rem; align-items: center; }
+.lb-join-row input { flex: 1; font-size: 1rem; text-align: center; font-family: 'Orbitron', monospace; font-weight: 700; }
+.ladder-err { color: #ff6b6b; font-size: .82rem; text-align: center; }
+.room-code-display { text-align: center; font-size: .95rem; color: rgba(255,255,255,.7); }
+.room-code-val {
+  font-family: 'Orbitron', monospace; font-size: 1.8rem; font-weight: 700;
+  color: var(--c-green); letter-spacing: .2em;
+  text-shadow: 0 0 15px rgba(0,255,136,.5); margin-left: .5rem;
+}
+.lobby-player-list { display: flex; flex-direction: column; gap: .5rem; min-height: 60px; }
+.lobby-player {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .6rem 1rem; background: rgba(255,255,255,.05);
+  border-radius: 10px; font-size: .9rem;
+}
+.lp-name { flex: 1; font-weight: 500; }
+.lp-host { font-size: .7rem; padding: .2rem .5rem; background: rgba(247,220,111,.2); color: var(--c-gold); border-radius: 6px; font-weight: 600; }
+.lobby-hint { text-align: center; font-size: .8rem; color: rgba(255,255,255,.45); }
+.btn-back { margin-top: .25rem; width: 100%; }
+
+/* ── Ladder Game ─────────────────────────────────────────── */
+.ladder-game-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  height: 100%; width: 100%; overflow: hidden; padding-top: .5rem;
+}
+.ladder-hud {
+  display: flex; align-items: center; gap: 1rem;
+  width: 100%; max-width: 420px;
+  padding: .4rem .75rem;
+  background: rgba(0,0,0,.5); border-radius: 10px;
+  margin-bottom: .4rem; flex-shrink: 0;
+}
+.hud-timer {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.2rem; font-weight: 700; color: var(--c-gold); min-width: 54px; text-align: center;
+}
+.hud-scores { display: flex; gap: .5rem; flex-wrap: wrap; flex: 1; }
+.hud-player {
+  display: flex; align-items: center; gap: .3rem;
+  padding: .2rem .5rem; background: rgba(255,255,255,.06);
+  border-radius: 6px; font-size: .78rem;
+}
+.hud-name { font-weight: 500; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-apple { font-size: .72rem; color: rgba(255,255,255,.7); }
+.canvas-wrap { display: flex; justify-content: center; align-items: flex-start; flex: 1; overflow: hidden; }
+#ladderCanvas { display: block; border-radius: 8px; box-shadow: 0 0 30px rgba(0,255,136,.1); }
+
+/* ── Mobile D-Pad ────────────────────────────────────────── */
+.mobile-dpad {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: .5rem 0 .75rem; flex-shrink: 0;
+}
+@media (min-width: 600px) { .mobile-dpad { display: none; } }
+.dpad-row { display: flex; justify-content: center; gap: 2px; }
+.dpad-center { width: 52px; height: 52px; }
+.dpad-btn {
+  width: 52px; height: 52px;
+  background: rgba(0,255,136,.12);
+  border: 1px solid rgba(0,255,136,.3);
+  border-radius: 10px; color: rgba(255,255,255,.8);
+  font-size: 1.1rem; cursor: pointer; touch-action: manipulation;
+  transition: background .1s, transform .08s;
+  display: flex; align-items: center; justify-content: center;
+}
+.dpad-btn:active { background: rgba(0,255,136,.35); transform: scale(.92); }
+
+/* ── Results ─────────────────────────────────────────────── */
+.results-card {
+  background: rgba(15,20,35,.97);
+  border: 1px solid rgba(247,220,111,.25);
+  border-radius: 20px; padding: 2rem 1.75rem;
+  width: 100%; max-width: 400px;
+  display: flex; flex-direction: column; gap: 1.25rem;
+  box-shadow: 0 0 40px rgba(247,220,111,.08);
+}
+.results-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.4rem; font-weight: 700;
+  color: var(--c-gold); text-align: center;
+  text-shadow: 0 0 20px rgba(247,220,111,.4);
+}
+.results-list { display: flex; flex-direction: column; gap: .6rem; }
+.result-row {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .65rem 1rem; background: rgba(255,255,255,.05);
+  border-radius: 10px; font-size: .9rem;
+}
+.result-me { background: rgba(0,255,136,.08); }
+.res-medal { font-size: 1.3rem; min-width: 28px; text-align: center; }
+.res-name  { flex: 1; font-weight: 500; }
+.res-score { color: rgba(255,255,255,.7); font-size: .85rem; }
+.res-fin   { font-size: .75rem; padding: .15rem .4rem; background: rgba(0,255,136,.15); color: var(--c-green); border-radius: 5px; }
+.results-actions { display: flex; gap: .75rem; }
+.results-actions button { flex: 1; }
+
+/* ── Error Toast ─────────────────────────────────────────── */
+.err-toast {
+  position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+  background: rgba(255,80,80,.9); color: #fff;
+  padding: .6rem 1.4rem; border-radius: 10px;
+  font-size: .88rem; font-weight: 500;
+  z-index: 9999; pointer-events: none;
+  box-shadow: 0 4px 20px rgba(255,80,80,.4);
+}

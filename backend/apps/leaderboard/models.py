@@ -33,7 +33,7 @@ class GameMode(models.Model):
         defaults = [
             ('infinite', '無限模式', True),
             ('level',    '關卡模式', True),
-            ('ladder',   '爬梯競速', False),  # Not active until Phase 4
+            ('ladder',   '爬梯競速', True),   # Phase 4 active
         ]
         for name, display, active in defaults:
             cls.objects.get_or_create(

@@ -24,11 +24,5 @@ USER snake
 
 EXPOSE 8000
 
-# Default: production Gunicorn
-# Overridden by docker-compose for development
-CMD ["gunicorn", "greedy_snake.wsgi:application", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "3", \
-     "--timeout", "30", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+# Phase 4: Use Daphne (ASGI) to support HTTP + WebSocket
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "greedy_snake.asgi:application"]

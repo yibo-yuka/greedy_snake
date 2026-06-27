@@ -1014,13 +1014,27 @@ class App {
     document.getElementById('btnLevelMode')?.addEventListener('click',    () => _startOrNick('level'));
 
     // Keyboard shortcut for mode cards
-    ['btnInfiniteMode', 'btnLevelMode'].forEach(id => {
+    ['btnInfiniteMode', 'btnLevelMode', 'btnLadderMode'].forEach(id => {
       document.getElementById(id)?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); }
       });
     });
 
-
+    // ── Ladder Mode ────────────────────────────────
+    document.getElementById('btnLadderMode')?.addEventListener('click', () => {
+      this.showScreen('ladder-lobby');
+      // Pre-fill lobby nickname from the game nickname
+      const nickInput = document.getElementById('ladderNickInput');
+      if (nickInput && this.nickname) nickInput.value = this.nickname;
+      // Create & connect ladder instance (one per session)
+      if (!window.ladderGame) {
+        window.ladderGame = new window.LadderGame();
+      } else {
+        // Reset UI for re-entry
+        document.getElementById('lbCreate')?.classList.remove('hidden');
+        document.getElementById('lbWaiting')?.classList.add('hidden');
+      }
+    });
 
     document.getElementById('btnChangeNickname')?.addEventListener('click', () => {
       this.pendingMode = null;
@@ -1202,6 +1216,8 @@ class App {
 document.addEventListener('DOMContentLoaded', () => {
   // Mount global app instance
   window.snakeApp = new App();
+  // Expose showScreen globally for ladder.js (non-module) to call
+  window.showScreen = (id) => window.snakeApp.showScreen(id);
 
   // Check backend & load leaderboard on home screen
   window.snakeApp.refreshLeaderboard('infinite');

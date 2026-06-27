@@ -12,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # ── Application definition ────────────────────────────────────────────────
 INSTALLED_APPS = [
+    'daphne',                               # Must be before django.contrib.staticfiles
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -23,6 +24,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'django_filters',
+    'channels',
 
     # Local apps
     'apps.leaderboard',
@@ -58,7 +60,18 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'greedy_snake.wsgi.application'
-ASGI_APPLICATION  = 'greedy_snake.asgi.application'  # For Phase 4 WebSocket
+ASGI_APPLICATION  = 'greedy_snake.asgi.application'
+
+# ── Django Channels ───────────────────────────────────────────────────────
+import os as _os
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [_os.environ.get('REDIS_URL', 'redis://localhost:6379/0')],
+        },
+    },
+}
 
 # ── Password validation ───────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
