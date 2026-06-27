@@ -376,6 +376,9 @@ class SnakeGame {
       this.drawApple(pulse);
     }
 
+    // Hook for subclass extras (obstacles, etc.) — drawn before particles & snake
+    this.drawExtras();
+
     // Particles
     this.particles  = this.particles.filter(p => p.update());
     this.deathParts = this.deathParts.filter(p => p.update());
@@ -386,6 +389,9 @@ class SnakeGame {
       this.drawSnake();
     }
   }
+
+  /** Override in subclasses to draw mode-specific elements */
+  drawExtras() {}
 
   drawApple(scale) {
     const { ctx, cellSize: c, apple } = this;
@@ -522,6 +528,213 @@ class SnakeGame {
 }
 
 /* ==========================================================
+   Level Snake Game — Phase 3
+   Extends SnakeGame with level progression + obstacles
+   ========================================================== */
+class LevelSnakeGame extends SnakeGame {
+  constructor() {
+    super();
+    this.currentLevel    = 1;
+    this.applesNeeded    = this._calcApplesNeeded(1);
+    this.applesThisLevel = 0;
+    this.obstacles       = [];
+    this.levelBonus      = 0;
+    this.transitioning   = false;
+  }
+
+  // ── Config ─────────────────────────────────────
+  _calcApplesNeeded(level) {
+    return Math.min(3 + level * 2, 15); // 5,7,9,11,13,15,15...
+  }
+
+  _calcBaseSpeed(level) {
+    return Math.max(108, INIT_SPEED - (level - 1) * 8); // 150,142,134...
+  }
+
+  _genObstacles(level) {
+    if (level < 3) return [];
+    const count   = Math.min((level - 2) * 2, 14);
+    const mid     = Math.floor(GRID_SIZE / 2);
+    const blocked = new Set([
+      ...this.snake.map(s => `${s.x},${s.y}`),
+      `${this.apple.x},${this.apple.y}`,
+    ]);
+    const obs = [];
+    let attempts = 0;
+    while (obs.length < count && attempts < 300) {
+      attempts++;
+      const x = Math.floor(Math.random() * GRID_SIZE);
+      const y = Math.floor(Math.random() * GRID_SIZE);
+      if (Math.abs(x - mid) <= 2 && Math.abs(y - mid) <= 2) continue; // keep spawn clear
+      const k = `${x},${y}`;
+      if (!blocked.has(k)) { blocked.add(k); obs.push({ x, y }); }
+    }
+    return obs;
+  }
+
+  // ── Lifecycle ──────────────────────────────────
+  reset() {
+    super.reset();
+    this.currentLevel    = 1;
+    this.applesNeeded    = this._calcApplesNeeded(1);
+    this.applesThisLevel = 0;
+    this.obstacles       = [];
+    this.levelBonus      = 0;
+    this.transitioning   = false;
+    this.speed           = INIT_SPEED;
+    this._updateLevelHUD();
+  }
+
+  start() {
+    super.start();
+    this._updateLevelHUD();
+  }
+
+  // ── Override update: obstacle collision ────────
+  update() {
+    if (!this.running || this.paused || this.dying || this.transitioning) return;
+    this.dir = { ...this.nextDir };
+    const head = this.snake[0];
+    const next = {
+      x: (head.x + this.dir.x + GRID_SIZE) % GRID_SIZE,
+      y: (head.y + this.dir.y + GRID_SIZE) % GRID_SIZE,
+    };
+    if (this.snake.some(s => s.x === next.x && s.y === next.y)) { this.triggerDeath(); return; }
+    if (this.obstacles.some(o => o.x === next.x && o.y === next.y)) { this.triggerDeath(); return; }
+    this.snake.unshift(next);
+    if (next.x === this.apple.x && next.y === this.apple.y) {
+      this.eatApple(next);
+    } else {
+      this.snake.pop();
+    }
+  }
+
+  // ── Override eatApple: level progression ───────
+  eatApple(pos) {
+    if (this.transitioning) return;
+    super.eatApple(pos); // score, particles, speed, respawn apple
+    this.applesThisLevel++;
+    this._updateLevelHUD();
+    if (this.applesThisLevel >= this.applesNeeded) this._onLevelComplete();
+  }
+
+  // ── Override _syncHUD: use level high score ────
+  _syncHUD() {
+    const el = document.getElementById('scoreDisplay');
+    if (el) {
+      el.textContent = this.score;
+      el.classList.remove('score-pop');
+      void el.offsetWidth;
+      el.classList.add('score-pop');
+    }
+    const hi = parseInt(localStorage.getItem('snake_hs_level') || '0');
+    if (this.score > hi) {
+      localStorage.setItem('snake_hs_level', String(this.score));
+    }
+    const bestEl = document.getElementById('bestDisplay');
+    if (bestEl) bestEl.textContent = Math.max(this.score, hi);
+  }
+
+  getHighScore() {
+    return parseInt(localStorage.getItem('snake_hs_level') || '0');
+  }
+
+  _onLevelComplete() {
+    this.transitioning = true;
+    clearInterval(this.tickId);
+
+    const bonus = this.currentLevel * 20;
+    this.levelBonus += bonus;
+    this.score      += bonus;
+
+    // Store high score after bonus
+    const hi = parseInt(localStorage.getItem('snake_hs_level') || '0');
+    if (this.score > hi) localStorage.setItem('snake_hs_level', String(this.score));
+    const scoreEl = document.getElementById('scoreDisplay');
+    if (scoreEl) scoreEl.textContent = this.score;
+    const bestEl = document.getElementById('bestDisplay');
+    if (bestEl) bestEl.textContent = Math.max(this.score, hi);
+
+    // Confetti burst
+    const W = this.canvas.width;
+    for (let i = 0; i < 40; i++) {
+      this.particles.push(new Particle(
+        20 + Math.random() * (W - 40),
+        20 + Math.random() * (W - 40),
+        'eat'
+      ));
+    }
+
+    window.snakeApp?.showLevelComplete(this.currentLevel, this.score, bonus);
+  }
+
+  advanceLevel() {
+    this.currentLevel++;
+    this.applesNeeded    = this._calcApplesNeeded(this.currentLevel);
+    this.applesThisLevel = 0;
+    this.speed           = this._calcBaseSpeed(this.currentLevel);
+
+    // Reset snake to centre
+    const mid = Math.floor(GRID_SIZE / 2);
+    this.snake   = [
+      { x: mid + 2, y: mid }, { x: mid + 1, y: mid }, { x: mid, y: mid },
+    ];
+    this.dir     = { ...DIR.RIGHT };
+    this.nextDir = { ...DIR.RIGHT };
+
+    this.spawnApple();
+    this.obstacles   = this._genObstacles(this.currentLevel);
+    this.transitioning = false;
+    this._tick();
+    this._updateLevelHUD();
+  }
+
+  // ── Override drawExtras: obstacles ─────────────
+  drawExtras() {
+    if (!this.obstacles.length) return;
+    const { ctx, cellSize: c } = this;
+    ctx.save();
+    this.obstacles.forEach(obs => {
+      const inset = c * 0.09;
+      const x = obs.x * c + inset;
+      const y = obs.y * c + inset;
+      const w = c - inset * 2;
+      ctx.shadowColor = 'rgba(100,116,139,0.5)';
+      ctx.shadowBlur  = 5;
+      const g = ctx.createLinearGradient(x, y, x + w, y + w);
+      g.addColorStop(0, '#2d3748');
+      g.addColorStop(1, '#1a202c');
+      ctx.fillStyle = g;
+      roundRect(ctx, x, y, w, w, w * 0.22);
+      ctx.fill();
+      // ✕ cross
+      ctx.shadowBlur  = 0;
+      ctx.strokeStyle = 'rgba(148,163,184,0.45)';
+      ctx.lineWidth   = Math.max(1, c * 0.07);
+      ctx.lineCap     = 'round';
+      const p = w * 0.27;
+      ctx.beginPath(); ctx.moveTo(x+p, y+p); ctx.lineTo(x+w-p, y+w-p); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+w-p, y+p); ctx.lineTo(x+p, y+w-p); ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  // ── HUD helpers ────────────────────────────────
+  _updateLevelHUD() {
+    const lv = document.getElementById('levelDisplay');
+    const pr = document.getElementById('appleProgress');
+    if (lv) lv.textContent = `Lv.${this.currentLevel}`;
+    if (pr) pr.textContent = `🍎 ${this.applesThisLevel} / ${this.applesNeeded}`;
+  }
+
+  // ── Capture level on death ─────────────────────
+  triggerDeath() {
+    window.snakeApp?._setCurrentLevel(this.currentLevel);
+    super.triggerDeath();
+  }
+}
+
+/* ==========================================================
    App — Screen Manager & Event Orchestrator
    ========================================================== */
 class App {
@@ -530,6 +743,8 @@ class App {
     this.currentScreen = 'home';
     this.nickname      = localStorage.getItem('snake_nickname');
     this.pendingMode   = null;
+    this.currentMode   = 'infinite';
+    this._gameOverLevel = null;
 
     this._bindAll();
     this._refreshHome();
@@ -561,7 +776,10 @@ class App {
     const nick = document.getElementById('displayNickname');
     const hi   = document.getElementById('displayHighScore');
     if (nick) nick.textContent = this.nickname || '訪客';
-    if (hi)   hi.textContent  = localStorage.getItem('snake_highscore') || '0';
+    // Show best across all modes
+    const infHi   = parseInt(localStorage.getItem('snake_highscore') || '0');
+    const levelHi = parseInt(localStorage.getItem('snake_hs_level')   || '0');
+    if (hi) hi.textContent = Math.max(infHi, levelHi);
   }
 
   _openNickScreen() {
@@ -590,7 +808,7 @@ class App {
 
   _afterNick() {
     if (this.pendingMode) {
-      this.startGame();
+      this.startGame(this.pendingMode);
     } else {
       this._refreshHome();
       this.showScreen('home');
@@ -598,46 +816,89 @@ class App {
   }
 
   /* ── Game Flow ─────────────────────────────── */
-  startGame() {
+  startGame(mode = 'infinite') {
+    this.currentMode   = mode;
+    this._gameOverLevel = null;
     this.showScreen('game');
 
-    // HUD reset
+    // HUD: mode indicator vs level HUD
+    const modeEl   = document.getElementById('modeIndicator');
+    const levelHUD = document.getElementById('levelHUD');
+    if (mode === 'level') {
+      if (modeEl)   modeEl.style.display   = 'none';
+      if (levelHUD) levelHUD.style.display = 'flex';
+    } else {
+      if (modeEl)   modeEl.style.display   = '';
+      if (levelHUD) levelHUD.style.display = 'none';
+    }
+
+    // Score / Best reset
+    const hiKey = mode === 'level' ? 'snake_hs_level' : 'snake_highscore';
     const score = document.getElementById('scoreDisplay');
     const best  = document.getElementById('bestDisplay');
     if (score) score.textContent = '0';
-    if (best)  best.textContent  = localStorage.getItem('snake_highscore') || '0';
+    if (best)  best.textContent  = localStorage.getItem(hiKey) || '0';
 
     // Mobile controls
     const mobileCtrl = document.getElementById('mobileControls');
     const isMobile   = window.matchMedia('(pointer: coarse)').matches;
     if (mobileCtrl) mobileCtrl.style.display = isMobile ? 'flex' : 'none';
 
-    // Pause overlay reset
-    const pause = document.getElementById('pauseOverlay');
-    if (pause) pause.style.display = 'none';
+    // Pause overlay + level complete overlay reset
+    const overlayIds = ['pauseOverlay', 'levelCompleteOverlay'];
+    overlayIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
 
     // Stop previous game
     if (this.game) this.game.stop();
 
-    // Create & initialize new game
-    this.game = new SnakeGame();
+    // Create appropriate game instance
+    this.game = mode === 'level' ? new LevelSnakeGame() : new SnakeGame();
     this.game.init();
 
-    // Small delay lets screen transition complete and layout settle
     setTimeout(() => {
       if (this.game) this.game.start();
     }, 220);
   }
 
+  showLevelComplete(level, score, bonus) {
+    const el = (id) => document.getElementById(id);
+    if (el('lcLevel')) el('lcLevel').textContent = `LEVEL  ${level}`;
+    if (el('lcBonus')) el('lcBonus').textContent = `+${bonus} 關卡獎勵`;
+    if (el('lcScore')) el('lcScore').textContent = score;
+    const ov = el('levelCompleteOverlay');
+    if (ov) ov.style.display = 'flex';
+
+    // Auto-advance after 2.6s
+    setTimeout(() => {
+      if (ov) ov.style.display = 'none';
+      if (this.game instanceof LevelSnakeGame) this.game.advanceLevel();
+    }, 2600);
+  }
+
+  _setCurrentLevel(level) {
+    this._gameOverLevel = level;
+  }
+
   showGameOver(score, apples, prevHighScore) {
-    const currentHi = parseInt(localStorage.getItem('snake_highscore') || '0');
+    const isLevel  = this.currentMode === 'level';
+    const hiKey    = isLevel ? 'snake_hs_level' : 'snake_highscore';
+    const currentHi = parseInt(localStorage.getItem(hiKey) || '0');
     const isNewRec  = score > 0 && score > (prevHighScore ?? -1) && score >= currentHi;
 
     const el = (id) => document.getElementById(id);
     el('gameoverNickname').textContent = this.nickname || '玩家';
     el('finalScore').textContent       = score;
     el('finalBest').textContent        = Math.max(score, currentHi);
-    el('finalApples').textContent      = apples;
+
+    // Show apples + level reached for level mode
+    if (isLevel && this._gameOverLevel) {
+      el('finalApples').textContent = `${apples}顆 · Lv.${this._gameOverLevel}`;
+    } else {
+      el('finalApples').textContent = apples;
+    }
 
     const badge = el('newRecordBadge');
     if (badge) badge.style.display = isNewRec ? 'block' : 'none';
@@ -649,26 +910,32 @@ class App {
   /* ── Event Binding ─────────────────────────── */
   _bindAll() {
     // ── Home ──────────────────────────────────────────
-    document.getElementById('btnInfiniteMode')?.addEventListener('click', () => {
-      this.pendingMode = 'infinite';
-      if (!this.nickname) {
-        this._openNickScreen();
-      } else {
-        this.startGame();
-      }
+    const _startOrNick = (mode) => {
+      this.pendingMode = mode;
+      if (!this.nickname) this._openNickScreen();
+      else this.startGame(mode);
+    };
+
+    document.getElementById('btnInfiniteMode')?.addEventListener('click', () => _startOrNick('infinite'));
+    document.getElementById('btnLevelMode')?.addEventListener('click',    () => _startOrNick('level'));
+
+    // Keyboard shortcut for mode cards
+    ['btnInfiniteMode', 'btnLevelMode'].forEach(id => {
+      document.getElementById(id)?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); }
+      });
     });
 
-    // Allow Enter/Space on mode card for keyboard users
-    document.getElementById('btnInfiniteMode')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        e.currentTarget.click();
-      }
-    });
+
 
     document.getElementById('btnChangeNickname')?.addEventListener('click', () => {
       this.pendingMode = null;
       this._openNickScreen();
+    });
+
+    // ── Play Again: keep same mode ────────────────────
+    document.getElementById('btnPlayAgain')?.addEventListener('click', () => {
+      this.startGame(this.currentMode);
     });
 
     // ── Nickname ──────────────────────────────────────

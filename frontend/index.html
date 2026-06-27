@@ -62,13 +62,15 @@
         <div class="mode-shine" aria-hidden="true"></div>
       </div>
 
-      <div class="mode-card mode-soon" role="listitem" aria-label="關卡模式 - 即將推出">
+      <div class="mode-card mode-active" id="btnLevelMode" role="listitem" tabindex="0"
+           aria-label="關卡模式 - 可遊玩">
         <div class="mode-icon-wrap">🎯</div>
         <div class="mode-text">
           <h2>關卡模式</h2>
-          <p>闖關挑戰，越來越難</p>
+          <p>闖關挑戰，吃滿蘋果升下一關</p>
         </div>
-        <span class="mode-badge badge-soon">即將推出</span>
+        <span class="mode-badge">遊玩</span>
+        <div class="mode-shine" aria-hidden="true"></div>
       </div>
 
       <div class="mode-card mode-soon" role="listitem" aria-label="爬梯競速 - 即將推出">
@@ -146,7 +148,12 @@
         </div>
       </div>
       <div class="hud-center">
-        <span class="hud-mode">♾️ 無限模式</span>
+        <span class="hud-mode" id="modeIndicator">♾️ 無限模式</span>
+        <!-- Level mode HUD (hidden in infinite mode) -->
+        <div class="hud-level-info" id="levelHUD" style="display:none">
+          <span class="level-badge" id="levelDisplay">Lv.1</span>
+          <span class="apple-prog" id="appleProgress">🍎 0 / 5</span>
+        </div>
       </div>
       <div class="hud-right">
         <button class="btn-icon-round" id="btnPause" aria-label="暫停遊戲">
@@ -163,6 +170,23 @@
       <!-- Countdown overlay (for future modes) -->
       <div class="canvas-overlay" id="countdownOverlay" style="display:none" role="timer">
         <div class="countdown-number" id="countdownNum">3</div>
+      </div>
+
+      <!-- Level Complete overlay -->
+      <div class="canvas-overlay" id="levelCompleteOverlay" style="display:none"
+           role="dialog" aria-modal="true" aria-label="關卡完成">
+        <div class="overlay-card lc-card">
+          <div class="lc-badge" id="lcLevel">LEVEL 1</div>
+          <div class="lc-title">COMPLETE!</div>
+          <div class="lc-stats">
+            <div class="lc-bonus" id="lcBonus">+20 關卡獎勵</div>
+            <div class="lc-score">總分 <span id="lcScore">0</span></div>
+          </div>
+          <div class="lc-next">
+            <div class="lc-dots"><span></span><span></span><span></span></div>
+            準備下一關
+          </div>
+        </div>
       </div>
 
       <!-- Pause overlay -->
