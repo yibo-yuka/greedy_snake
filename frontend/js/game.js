@@ -538,21 +538,16 @@ class SnakeGame {
         ctx.globalAlpha = Math.max(0, 1 - progress * 1.6);
       }
 
-      // Color: head vivid → tail dark
+      // Color: head vivid → tail dark (same in both themes)
       if (isHead) {
-        ctx.fillStyle   = light ? '#2e7d1a' : '#39ff14';
-        ctx.shadowColor = light ? 'rgba(46,125,26,0.55)' : '#39ff14';
-        ctx.shadowBlur  = light ? 8 : 16;
+        ctx.fillStyle   = '#39ff14';
+        ctx.shadowColor = '#39ff14';
+        ctx.shadowBlur  = 16;
       } else {
-        const g = light
-          ? Math.round(lerp(100, 50, t * 0.72))
-          : Math.round(lerp(255, 90, t * 0.72));
-        const r = light
-          ? Math.round(lerp(46, 18, t))
-          : Math.round(lerp(22, 5, t));
-        const b = light ? 18 : 12;
-        ctx.fillStyle   = `rgb(${r},${g},${b})`;
-        ctx.shadowColor = light ? 'rgba(46,125,26,0.12)' : 'rgba(57,200,14,0.2)';
+        const g = Math.round(lerp(255, 90, t * 0.72));
+        const r = Math.round(lerp(22, 5, t));
+        ctx.fillStyle   = `rgb(${r},${g},12)`;
+        ctx.shadowColor = 'rgba(57,200,14,0.2)';
         ctx.shadowBlur  = 4;
       }
 

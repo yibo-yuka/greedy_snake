@@ -195,9 +195,10 @@ class ScoreSubmitView(APIView):
             .count()
         ) + 1
 
-        # Invalidate cached leaderboards for this mode
+        # Invalidate cached leaderboards for this mode (all sort keys)
         for lim in [10, 20, 50, 100]:
-            cache.delete(f'lb:{data["mode"]}:{lim}')
+            for srt in ['score', 'apples', 'ratio']:
+                cache.delete(f'lb:{data["mode"]}:{lim}:{srt}')
 
         resp_data = {
             'id':      score_obj.pk,

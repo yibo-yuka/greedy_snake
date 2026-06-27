@@ -819,6 +819,14 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   overflow: hidden;
 }
 
+/* Light theme — game screen and HUD use cream background */
+html[data-theme="light"] .screen-game {
+  background: var(--c-bg);
+}
+html[data-theme="light"] .game-hud {
+  background: rgba(240, 232, 218, 0.95);
+}
+
 /* HUD bar */
 .game-hud {
   display: flex;
