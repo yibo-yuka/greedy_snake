@@ -291,21 +291,20 @@ class SnakeGame {
     this.applesEaten++;
 
     // ── Combo streak ──────────────────────────────────────────
-    // ≤1 direction change since last apple continues (or starts) the chain.
-    // comboStreak=0 → first apple in chain: score is base (no bonus yet)
-    // comboStreak=1 → second consecutive: ×2
-    // comboStreak=2 → third consecutive:  ×4  ... etc.
-    const withinOne = this.turnsSinceApple <= 1;
-    const pts       = SCORE_APPLE * Math.pow(2, this.comboStreak);
-    this.score     += pts;
+    // ≤1 direction change since last apple continues the chain.
+    // activeStreak is what this apple earns:
+    //   chain broken (>1 turn) → activeStreak=0 → pts=10
+    //   1st chain apple       → activeStreak=0 → pts=10  (chain starts for NEXT)
+    //   2nd chain apple       → activeStreak=1 → pts=20
+    //   3rd chain apple       → activeStreak=2 → pts=40  ...etc.
+    const withinOne    = this.turnsSinceApple <= 1;
+    const activeStreak = withinOne ? this.comboStreak : 0;
+    const pts          = SCORE_APPLE * Math.pow(2, activeStreak);
+    this.score        += pts;
 
     // Update streak for NEXT apple
-    if (withinOne) {
-      this.comboStreak++;          // extend chain
-    } else {
-      this.comboStreak = 0;        // chain broken
-    }
-    this.turnsSinceApple = 0;      // reset turn counter
+    this.comboStreak     = withinOne ? this.comboStreak + 1 : 0;
+    this.turnsSinceApple = 0;
 
     // Particle burst at apple position
     const cx = (pos.x + 0.5) * this.cellSize;
@@ -322,7 +321,7 @@ class SnakeGame {
         text:    `+${pts}`,
         opacity: 1.0,
         vy:      -1.6,
-        size:    Math.min(this.comboStreak, 4),  // visual weight by streak depth
+        size:    Math.min(activeStreak, 4),   // visual weight by streak depth
       });
     }
 
