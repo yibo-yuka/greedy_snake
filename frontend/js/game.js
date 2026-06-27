@@ -360,17 +360,19 @@ class SnakeGame {
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, W, W);
 
-    // Cell grid — clear rounded-rect outline for every empty cell
+    // Cell grid — clear rounded-rect border for every cell
     ctx.save();
-    for (let row = 0; row < GRID_SIZE; row++) {
-      for (let col = 0; col < GRID_SIZE; col++) {
+    const gridCols = this.gridCols ?? GRID_SIZE;
+    const gridRows = this.gridRows ?? GRID_SIZE;
+    for (let row = 0; row < gridRows; row++) {
+      for (let col = 0; col < gridCols; col++) {
         const bx  = col * c;
         const by  = row * c;
-        const pad = c * 0.07;               // small inset so borders don't overlap
-        const r   = c * 0.18;              // corner radius
-        ctx.strokeStyle = 'rgba(57, 255, 20, 0.18)';
-        ctx.lineWidth   = 1;
-        ctx.fillStyle   = 'rgba(57, 255, 20, 0.025)';
+        const pad = c * 0.06;
+        const r   = c * 0.20;
+        ctx.fillStyle   = 'rgba(57, 255, 20, 0.03)';
+        ctx.strokeStyle = 'rgba(57, 255, 20, 0.30)';
+        ctx.lineWidth   = 1.5;
         roundRect(ctx, bx + pad, by + pad, c - pad * 2, c - pad * 2, r);
         ctx.fill();
         ctx.stroke();
