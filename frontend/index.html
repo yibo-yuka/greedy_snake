@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="多模式貪食蛇 PWA 遊戲 — 支援無限模式、關卡模式與多人爬梯競速，跨平台可安裝">
+  <meta name="theme-color" content="#39ff14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="貪食蛇">
+  <meta property="og:title" content="Greedy Snake — 貪食蛇 PWA">
+  <meta property="og:description" content="多模式貪食蛇，可安裝到任何裝置，挑戰全球排行榜">
+  <meta property="og:type" content="game">
+
+  <title>Greedy Snake — 貪食蛇</title>
+
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./assets/icons/icon.svg">
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+  <!-- ─────────── HOME SCREEN ─────────── -->
+  <div id="screen-home" class="screen" aria-label="主選單">
+
+    <header class="home-header">
+      <div class="logo-row">
+        <span class="logo-emoji" aria-hidden="true">🐍</span>
+        <h1 class="game-title">GREEDY<br><span>SNAKE</span></h1>
+      </div>
+      <p class="tagline">多平台 · 多模式 · 跨裝置挑戰</p>
+    </header>
+
+    <div class="player-bar" id="playerBar">
+      <div class="player-stat">
+        <span class="stat-label">玩家</span>
+        <span class="stat-value green" id="displayNickname">訪客</span>
+      </div>
+      <div class="player-stat">
+        <span class="stat-label">最高分</span>
+        <span class="stat-value gold" id="displayHighScore">0</span>
+      </div>
+      <button class="btn-ghost btn-sm" id="btnChangeNickname" aria-label="更改暱稱">✏️ 改暱稱</button>
+    </div>
+
+    <main class="modes-grid" role="list" aria-label="遊戲模式">
+
+      <div class="mode-card mode-active" id="btnInfiniteMode" role="listitem" tabindex="0"
+           aria-label="無限模式 - 可遊玩">
+        <div class="mode-icon-wrap">♾️</div>
+        <div class="mode-text">
+          <h2>無限模式</h2>
+          <p>吃越多越好，挑戰速度極限</p>
+        </div>
+        <span class="mode-badge">遊玩</span>
+        <div class="mode-shine" aria-hidden="true"></div>
+      </div>
+
+      <div class="mode-card mode-soon" role="listitem" aria-label="關卡模式 - 即將推出">
+        <div class="mode-icon-wrap">🎯</div>
+        <div class="mode-text">
+          <h2>關卡模式</h2>
+          <p>闖關挑戰，越來越難</p>
+        </div>
+        <span class="mode-badge badge-soon">即將推出</span>
+      </div>
+
+      <div class="mode-card mode-soon" role="listitem" aria-label="爬梯競速 - 即將推出">
+        <div class="mode-icon-wrap">🏆</div>
+        <div class="mode-text">
+          <h2>爬梯競速</h2>
+          <p>2-4 人即時多人對戰</p>
+        </div>
+        <span class="mode-badge badge-soon">即將推出</span>
+      </div>
+
+    </main>
+
+    <section class="leaderboard-panel" aria-label="全球排行榜">
+      <div class="panel-header">
+        <span class="panel-title">🌐 全球排行榜</span>
+        <span class="panel-mode-tag">無限模式</span>
+      </div>
+      <div class="leaderboard-offline">
+        <div class="offline-icon">🔌</div>
+        <p>連接後端後啟用全球排行榜</p>
+        <span class="offline-hint">Phase 2 即將上線</span>
+      </div>
+    </section>
+
+    <footer class="home-footer">
+      <span>Greedy Snake PWA · 2026</span>
+    </footer>
+
+  </div>
+
+  <!-- ─────────── NICKNAME SCREEN ─────────── -->
+  <div id="screen-nickname" class="screen" aria-label="設定暱稱" aria-hidden="true">
+    <div class="center-wrapper">
+      <div class="nickname-card">
+        <span class="nickname-emoji" aria-hidden="true">🐍</span>
+        <h2>你的暱稱</h2>
+        <p>留下名字，讓全球看到你的成就<br>或直接跳過使用隨機暱稱</p>
+
+        <div class="input-wrap">
+          <input
+            type="text"
+            id="nicknameInput"
+            placeholder="輸入暱稱（2-16 字）"
+            maxlength="16"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-label="暱稱輸入框"
+          >
+          <span class="char-count" id="nicknameCounter" aria-live="polite">0 / 16</span>
+        </div>
+
+        <div class="nick-actions">
+          <button class="btn-primary" id="btnConfirmNickname">✅ 開始遊戲</button>
+          <button class="btn-ghost" id="btnSkipNickname">🎲 隨機暱稱</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── GAME SCREEN ─────────── -->
+  <div id="screen-game" class="screen screen-game" aria-label="遊戲中" aria-hidden="true">
+
+    <div class="game-hud" role="status" aria-live="polite">
+      <div class="hud-left">
+        <div class="hud-stat">
+          <span class="hud-label">分數</span>
+          <span class="hud-val" id="scoreDisplay">0</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-label">最高</span>
+          <span class="hud-val" id="bestDisplay">0</span>
+        </div>
+      </div>
+      <div class="hud-center">
+        <span class="hud-mode">♾️ 無限模式</span>
+      </div>
+      <div class="hud-right">
+        <button class="btn-icon-round" id="btnPause" aria-label="暫停遊戲">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="canvas-area" id="gameContainer">
+      <canvas id="gameCanvas" aria-label="遊戲畫面"></canvas>
+
+      <!-- Countdown overlay (for future modes) -->
+      <div class="canvas-overlay" id="countdownOverlay" style="display:none" role="timer">
+        <div class="countdown-number" id="countdownNum">3</div>
+      </div>
+
+      <!-- Pause overlay -->
+      <div class="canvas-overlay" id="pauseOverlay" style="display:none" role="dialog" aria-modal="true" aria-label="暫停選單">
+        <div class="overlay-card">
+          <div class="overlay-icon" aria-hidden="true">⏸</div>
+          <h2>已暫停</h2>
+          <button class="btn-primary" id="btnResume">▶ 繼續</button>
+          <button class="btn-ghost" id="btnQuit">🏠 回主選單</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile D-pad -->
+    <div class="mobile-ctrl" id="mobileControls" style="display:none" aria-label="方向控制">
+      <div class="dpad" role="group" aria-label="D-pad 方向鍵">
+        <button class="dp dp-up"    data-dir="up"    aria-label="上">▲</button>
+        <button class="dp dp-left"  data-dir="left"  aria-label="左">◄</button>
+        <div    class="dp dp-mid"   aria-hidden="true"></div>
+        <button class="dp dp-right" data-dir="right" aria-label="右">►</button>
+        <button class="dp dp-down"  data-dir="down"  aria-label="下">▼</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ─────────── GAME OVER SCREEN ─────────── -->
+  <div id="screen-gameover" class="screen" aria-label="遊戲結束" aria-hidden="true">
+    <div class="center-wrapper">
+      <div class="gameover-card">
+
+        <div class="go-title" aria-live="assertive">GAME OVER</div>
+        <div class="go-player" id="gameoverNickname">玩家</div>
+
+        <div class="result-row">
+          <div class="result-cell">
+            <span class="result-label">最終分數</span>
+            <span class="result-val gold big" id="finalScore">0</span>
+          </div>
+          <div class="result-cell">
+            <span class="result-label">個人最高</span>
+            <span class="result-val white" id="finalBest">0</span>
+          </div>
+          <div class="result-cell">
+            <span class="result-label">吃到蘋果</span>
+            <span class="result-val white" id="finalApples">0</span>
+          </div>
+        </div>
+
+        <div class="new-record" id="newRecordBadge" style="display:none" aria-live="polite">
+          🎉 新紀錄！恭喜！
+        </div>
+
+        <div class="go-actions">
+          <button class="btn-primary" id="btnPlayAgain">🔄 再玩一次</button>
+          <button class="btn-ghost" id="btnHome">🏠 回主選單</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/game.js"></script>
+</body>
+</html>

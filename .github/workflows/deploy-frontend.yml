@@ -1,0 +1,64 @@
+name: 🚀 Deploy Frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+# Grant permissions to deploy to Pages
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+# Only one deployment at a time; don't cancel in-progress runs
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. (Optional) Validate HTML ──────────────────────────
+      # Uncomment when html-validator is added as dev dependency
+      # - name: 🔍 Validate HTML
+      #   run: npx html-validate frontend/index.html
+
+      # ── 3. Configure GitHub Pages ────────────────────────────
+      - name: ⚙️ Configure Pages
+        uses: actions/configure-pages@v4
+
+      # ── 4. Upload the frontend/ folder as artifact ───────────
+      - name: 📦 Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Deploy everything inside frontend/
+          path: './frontend'
+
+      # ── 5. Deploy to GitHub Pages ────────────────────────────
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      # ── 6. Print deployment URL ──────────────────────────────
+      - name: ✅ Deployment summary
+        run: |
+          echo "## 🐍 Greedy Snake deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Built from commit \`${{ github.sha }}\` on branch \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY

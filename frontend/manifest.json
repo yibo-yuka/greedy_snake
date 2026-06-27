@@ -1,0 +1,51 @@
+{
+  "name": "Greedy Snake — 貪食蛇",
+  "short_name": "貪食蛇",
+  "description": "多模式貪食蛇 PWA 遊戲：無限模式、關卡模式、多人爬梯競速，跨平台可安裝",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui", "browser"],
+  "background_color": "#050510",
+  "theme_color": "#39ff14",
+  "orientation": "any",
+  "lang": "zh-TW",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "無限模式",
+      "short_name": "無限",
+      "description": "直接開始無限模式",
+      "url": "./?mode=infinite",
+      "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

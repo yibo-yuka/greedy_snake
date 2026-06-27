@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#0a0a1f"/>
+      <stop offset="100%" stop-color="#050510"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+
+  <!-- Grid lines (subtle) -->
+  <g stroke="rgba(57,255,20,0.07)" stroke-width="1">
+    <line x1="128" y1="64"  x2="128" y2="448"/>
+    <line x1="256" y1="64"  x2="256" y2="448"/>
+    <line x1="384" y1="64"  x2="384" y2="448"/>
+    <line x1="64"  y1="128" x2="448" y2="128"/>
+    <line x1="64"  y1="256" x2="448" y2="256"/>
+    <line x1="64"  y1="384" x2="448" y2="384"/>
+  </g>
+
+  <!-- Snake body — S-shape path -->
+  <!-- Segment 1: horizontal top-right -->
+  <rect x="220" y="96"  width="172" height="68" rx="34" fill="#39ff14" filter="url(#glow)"/>
+  <!-- Segment 2: vertical right going down -->
+  <rect x="356" y="96"  width="68"  height="152" rx="34" fill="#26b00e" filter="url(#softGlow)"/>
+  <!-- Segment 3: horizontal middle going left -->
+  <rect x="88"  y="212" width="304" height="68" rx="34" fill="#1eaa0c"/>
+  <!-- Segment 4: vertical left going down -->
+  <rect x="88"  y="212" width="68"  height="152" rx="34" fill="#16850a"/>
+  <!-- Segment 5: horizontal bottom going right -->
+  <rect x="88"  y="328" width="200" height="68" rx="34" fill="#0f6006"/>
+
+  <!-- Snake head (at top-left of top segment) -->
+  <rect x="160" y="80" width="88" height="88" rx="36" fill="#39ff14" filter="url(#glow)"/>
+
+  <!-- Eyes -->
+  <circle cx="186" cy="110" r="13" fill="#050510"/>
+  <circle cx="186" cy="110" r="5"  fill="white"/>
+  <circle cx="183" cy="107" r="2.5" fill="white" opacity="0.8"/>
+
+  <circle cx="224" cy="110" r="13" fill="#050510"/>
+  <circle cx="224" cy="110" r="5"  fill="white"/>
+  <circle cx="221" cy="107" r="2.5" fill="white" opacity="0.8"/>
+
+  <!-- Apple -->
+  <circle cx="380" cy="390" r="56" fill="#ff2244" filter="url(#softGlow)"/>
+  <!-- Apple shine -->
+  <ellipse cx="360" cy="366" rx="18" ry="11" fill="rgba(255,255,255,0.28)"/>
+  <!-- Stem -->
+  <line x1="380" y1="336" x2="398" y2="308" stroke="#6b4423" stroke-width="9" stroke-linecap="round"/>
+  <!-- Leaf -->
+  <ellipse cx="414" cy="312" rx="22" ry="10" fill="#39ff14"
+           transform="rotate(-35 414 312)" filter="url(#softGlow)"/>
+</svg>
