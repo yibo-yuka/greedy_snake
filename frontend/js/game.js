@@ -896,6 +896,15 @@ class App {
       target.setAttribute('aria-hidden', 'false');
     }
     this.currentScreen = id;
+
+    // The joystick container has pointer-events:auto which penetrates
+    // #screen-game's pointer-events:none and blocks touches on the home
+    // screen below it (e.g. leaderboard sort tabs in portrait mode).
+    // Always hide it when we leave the game screen.
+    if (id !== 'game') {
+      const mc = document.getElementById('mobileControls');
+      if (mc) mc.style.display = 'none';
+    }
   }
 
   /* ── Nickname helpers ──────────────────────── */
