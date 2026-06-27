@@ -83,11 +83,17 @@ class Score(models.Model):
         """Server-side anti-cheat: score must be consistent with apples eaten."""
         from django.core.exceptions import ValidationError
 
-        SCORE_PER_APPLE   = 10
-        MAX_LEVEL_BONUS   = 50   # approx. max level * 20 per round (generous)
-        # Each apple = 10 pts; level bonus per level ≤ level * 20
-        theoretical_max = self.apples_eaten * SCORE_PER_APPLE + MAX_LEVEL_BONUS * 20
-        if self.score > theoretical_max + 200:   # 200 pt tolerance
+        SCORE_PER_APPLE = 10
+        MAX_LEVEL_BONUS = 50 * 20   # up to 50 levels × 20 pts each = 1000
+        MAX_COMBO_DEPTH = 20        # cap streak depth to avoid astronomical numbers
+
+        # With the combo streak mechanic each apple can double:
+        # streak 0→+10, 1→+20, 2→+40 … → max total = 10 × (2^n − 1) for n apples.
+        n               = min(self.apples_eaten, MAX_COMBO_DEPTH)
+        max_apple_pts   = SCORE_PER_APPLE * ((2 ** n) - 1) if n > 0 else 0
+        theoretical_max = max_apple_pts + MAX_LEVEL_BONUS + 500   # +500 buffer
+
+        if self.score > theoretical_max:
             raise ValidationError(
                 f"Score {self.score} is inconsistent with {self.apples_eaten} apples eaten."
             )
