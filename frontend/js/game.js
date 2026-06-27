@@ -199,6 +199,8 @@ class SnakeGame {
     this.particles  = [];
     this.deathParts = [];
     this.dying    = false;
+    this.turnsSinceApple = 0;   // combo counter
+    this.comboLabels     = [];  // floating ×2 text
     this.spawnApple();
   }
 
@@ -273,22 +275,36 @@ class SnakeGame {
     }
   }
 
-  /** Queue a direction change — ignores 180° reversal */
+  /** Queue a direction change — ignores 180° reversal; counts as a turn for combo */
   setDirection(dir) {
     if (dir.x !== 0 && dir.x === -this.dir.x) return;
     if (dir.y !== 0 && dir.y === -this.dir.y) return;
+    // Only count as a turn if direction genuinely changes from what's queued
+    if (dir.x !== this.nextDir.x || dir.y !== this.nextDir.y) {
+      this.turnsSinceApple++;
+    }
     this.nextDir = { ...dir };
   }
 
   eatApple(pos) {
     this.applesEaten++;
-    this.score += SCORE_APPLE;
+
+    // Combo: ≤1 direction change since last apple → score ×2
+    const isCombo = this.turnsSinceApple <= 1;
+    const pts     = SCORE_APPLE * (isCombo ? 2 : 1);
+    this.score   += pts;
+    this.turnsSinceApple = 0;   // reset counter
 
     // Particle burst at apple position
     const cx = (pos.x + 0.5) * this.cellSize;
     const cy = (pos.y + 0.5) * this.cellSize;
     for (let i = 0; i < 14; i++) {
       this.particles.push(new Particle(cx, cy, 'eat'));
+    }
+
+    // Floating combo label
+    if (isCombo) {
+      this.comboLabels.push({ x: cx, y: cy - this.cellSize * 0.3, text: `+${pts} ×2`, opacity: 1.0, vy: -1.6 });
     }
 
     // Accelerate game tick
@@ -399,6 +415,26 @@ class SnakeGame {
     // Snake (fade out during death)
     if (!this.dying || this.deathParts.length > 0) {
       this.drawSnake();
+    }
+
+    // Floating combo labels (×2)
+    this.comboLabels = this.comboLabels.filter(lbl => lbl.opacity > 0);
+    if (this.comboLabels.length) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const fs = Math.max(13, Math.round(this.cellSize * 0.85));
+      ctx.font = `bold ${fs}px 'Orbitron', 'Rajdhani', monospace`;
+      ctx.shadowBlur = 12;
+      for (const lbl of this.comboLabels) {
+        ctx.globalAlpha  = lbl.opacity;
+        ctx.shadowColor  = '#ffd700';
+        ctx.fillStyle    = '#ffd700';
+        ctx.fillText(lbl.text, lbl.x, lbl.y);
+        lbl.y       += lbl.vy;
+        lbl.opacity -= 0.022;
+      }
+      ctx.restore();
     }
   }
 
