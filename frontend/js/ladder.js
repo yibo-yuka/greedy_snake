@@ -1,47 +1,61 @@
 'use strict';
 /**
- * Ladder Race — Frontend WebSocket Client + Canvas Engine
- * ========================================================
- * Connects via WebSocket to Django Channels backend.
- * Renders the ladder map, player snakes, and apples on HTML5 Canvas.
+ * Ladder Race v2 — Frontend WebSocket Client + Canvas Renderer
+ * ==============================================================
+ * New design: 5 vertical tracks, horizontal rungs, fully automatic movement.
+ * Players select starting column → program runs them automatically → rank by finish order.
  *
- * Constants must match backend/apps/leaderboard/ladder.py
+ * Constants MUST match backend/apps/leaderboard/ladder.py
  */
 
-const GRID_COLS      = 10;
-const GRID_ROWS      = 15;
-const FINISH_ROW     = 14;
-const SELECTION_SECS = 10;
+const NUM_COLS      = 5;
+const NUM_ROWS      = 20;
+const FINISH_ROW    = 0;
+const START_ROW     = 19;
+const SELECTION_SECS = 15;
 
-// Ladder definitions [col, rowStart, rowEnd] — mirrors ladder.py
-const LADDER_DEFS = [[8,0,2],[1,2,5],[8,5,8],[1,8,11],[8,11,14]];
+// Must match RUNGS in ladder.py: [row, col_left, col_right]
+const RUNGS = [
+  [3,  0, 1], [5,  3, 4], [7,  1, 2], [9,  2, 3],
+  [11, 0, 1], [12, 3, 4], [14, 1, 2], [15, 2, 3],
+  [17, 0, 1], [18, 1, 2], [18, 3, 4],
+];
 
-// ═══════════════════════════════════════════════════════════════════════════
+const MEDALS = ['🥇', '🥈', '🥉', '🏅', '🏅'];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 class LadderGame {
   constructor() {
-    this.ws            = null;
-    this.playerID      = null;
-    this.roomCode      = null;
-    this.isHost        = false;
-    this.nickname      = '';
-    this.state         = 'idle'; // idle|lobby|selecting|playing|finished
-    this.mapSet        = null;   // Set<"col,row">
-    this.players       = [];
-    this.snakes        = {};     // {player_id → snake object}
-    this.apples        = [];
-    this.selectedCols  = {};     // {player_id → col}
-    this.mySelectedCol = null;
-    this.selTimeLeft   = SELECTION_SECS;
-    this._selTimer     = null;
-    this.gameElapsed   = 0;
-    this.rafId         = null;
-    this.canvas        = document.getElementById('ladderCanvas');
-    this.ctx           = this.canvas?.getContext('2d');
-    this.cellSz        = 30;
+    this.ws           = null;
+    this.playerID     = null;
+    this.roomCode     = null;
+    this.isHost       = false;
+    this.nickname     = '';
+    this.state        = 'idle'; // idle|lobby|selecting|playing|finished
+
+    // Lobby
+    this.lobbyPlayers = [];       // [{pid, nickname, color, is_host}]
+
+    // Game
+    this.gamePlayers  = {};       // {pid → player_state}
+    this.selectedCols = {};       // {pid → col}
+
+    // Selection countdown
+    this.selTimeLeft  = SELECTION_SECS;
+    this._selTimer    = null;
+
+    // Canvas
+    this.canvas  = document.getElementById('ladderCanvas');
+    this.ctx     = this.canvas?.getContext('2d');
+    this.cellSz  = 32;
+    this.rafId   = null;
+
     this._bindEvents();
   }
 
-  // ── WebSocket ────────────────────────────────────────────────────────────
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+
   connect(nickname) {
     this.nickname = nickname;
     const api    = window.SNAKE_CONFIG?.apiUrl || '';
@@ -52,20 +66,22 @@ class LadderGame {
     console.log('[Ladder] connecting to', wsUrl);
 
     this.ws            = new WebSocket(wsUrl);
-    this.ws.onopen    = ()  => console.log('[Ladder] WS open');
-    this.ws.onmessage = (e) => this._dispatch(JSON.parse(e.data));
-    this.ws.onclose   = ()  => this._onClose();
-    this.ws.onerror   = (e) => this._onWsError(e);
+    this.ws.onopen     = ()  => console.log('[Ladder] WS open');
+    this.ws.onmessage  = (e) => this._dispatch(JSON.parse(e.data));
+    this.ws.onclose    = ()  => this._onClose();
+    this.ws.onerror    = (e) => { console.error('[Ladder] WS error', e); };
   }
 
   send(data) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(data));
+    if (this.ws?.readyState === WebSocket.OPEN)
+      this.ws.send(JSON.stringify(data));
   }
-  createRoom()       { this.send({ type: 'create_room',  nickname: this.nickname }); }
-  joinRoom(code)     { this.send({ type: 'join_room',    room_code: code, nickname: this.nickname }); }
-  startGame()        { this.send({ type: 'start_game'   }); }
-  selectStart(col)   { this.mySelectedCol = col; this.send({ type: 'select_start', col }); }
-  sendMove(dir)      { this.send({ type: 'move', direction: dir }); }
+
+  createRoom()     { this.send({ type: 'create_room', nickname: this.nickname }); }
+  joinRoom(code)   { this.send({ type: 'join_room',   room_code: code, nickname: this.nickname }); }
+  closeRoom()      { this.send({ type: 'close_room' }); }
+  startGame()      { this.send({ type: 'start_game' }); }
+  selectStart(col) { this.send({ type: 'select_start', col }); }
 
   disconnect() {
     this.ws?.close(); this.ws = null;
@@ -75,19 +91,18 @@ class LadderGame {
   }
 
   _onClose() {
-    if (this.state !== 'idle') this._showErr('與伺服器斷線，請重新整理頁面');
-  }
-  _onWsError(e) {
-    console.error('[Ladder] WS error', e);
-    this._showErr('無法連接伺服器（請確認後端 WebSocket 已啟用）');
+    if (this.state !== 'idle' && this.state !== 'finished')
+      this._showErr('與伺服器斷線，請重新整理頁面');
   }
 
-  // ── Message dispatcher ───────────────────────────────────────────────────
+  // ── Message dispatcher ─────────────────────────────────────────────────────
+
   _dispatch(msg) {
     const h = {
       room_joined:    () => this._onRoomJoined(msg),
       player_joined:  () => this._onPlayerJoined(msg),
       player_left:    () => this._onPlayerLeft(msg),
+      room_closed:    () => this._onRoomClosed(msg),
       selecting:      () => this._onSelecting(msg),
       start_selected: () => this._onStartSelected(msg),
       game_started:   () => this._onGameStarted(msg),
@@ -98,35 +113,42 @@ class LadderGame {
     h[msg.type]?.();
   }
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
   _onRoomJoined(msg) {
-    this.playerID = msg.player_id;
-    this.roomCode = msg.room_code;
-    this.isHost   = msg.is_host;
-    this.players  = msg.players;
-    this._buildMap(msg.map);
-    this.state    = 'lobby';
-    this._uiShowWaiting();
+    this.playerID     = msg.player_id;
+    this.roomCode     = msg.room_code;
+    this.isHost       = msg.is_host;
+    this.lobbyPlayers = msg.players;
+    this.state        = 'lobby';
+    this._showLobbyWaiting();
   }
 
   _onPlayerJoined(msg) {
-    this.players = msg.players;
-    this._uiRenderPlayers();
+    this.lobbyPlayers = msg.players;
+    this._renderLobbyPlayers();
   }
 
   _onPlayerLeft(msg) {
-    this.players = msg.players;
-    this._uiRenderPlayers();
+    this.lobbyPlayers = msg.players;
+    this._renderLobbyPlayers();
+  }
+
+  _onRoomClosed(msg) {
+    this.disconnect();
+    this._resetLobbyUI();
+    window.showScreen('home');
+    this._showErr(msg.message);
   }
 
   _onSelecting(msg) {
     this.state        = 'selecting';
     this.selTimeLeft  = msg.countdown;
     this.selectedCols = {};
-    this.mySelectedCol = null;
     window.showScreen('ladder-game');
     this._initCanvas();
-    document.getElementById('ladderHUD').classList.add('hidden');
+    document.getElementById('ladderHUD')?.classList.remove('hidden');
+    this._renderHUDSelecting();
     this._startSelTimer();
     this._renderLoop();
   }
@@ -136,16 +158,15 @@ class LadderGame {
   }
 
   _onGameStarted(msg) {
-    this.state = 'playing';
+    this.state        = 'playing';
+    this.selectedCols = msg.selected_cols;
     clearInterval(this._selTimer);
-    this._buildMap(msg.map);
-    this._applyState(msg.state);
-    document.getElementById('ladderHUD').classList.remove('hidden');
+    this._applyGameState(msg.state);
+    this._updateHUD();
   }
 
   _onTick(msg) {
-    this.gameElapsed = msg.elapsed;
-    this._applyState(msg.state);
+    this._applyGameState(msg.state);
     this._updateHUD();
   }
 
@@ -156,33 +177,32 @@ class LadderGame {
     window.showScreen('ladder-results');
   }
 
-  // ── State helpers ─────────────────────────────────────────────────────────
-  _buildMap(mapData) {
-    this.mapSet = new Set(mapData.map(([c, r]) => `${c},${r}`));
-  }
-  isPass(c, r) { return this.mapSet?.has(`${c},${r}`) ?? false; }
+  // ── State helpers ──────────────────────────────────────────────────────────
 
-  _applyState(st) {
-    this.snakes = {};
-    for (const p of st.players) this.snakes[p.player_id] = p;
-    this.apples = st.apples;
+  _applyGameState(st) {
+    this.gamePlayers = {};
+    for (const p of st.players) this.gamePlayers[p.pid] = p;
   }
 
-  // ── Canvas ────────────────────────────────────────────────────────────────
+  // ── Canvas ─────────────────────────────────────────────────────────────────
+
   _initCanvas() {
     if (!this.canvas) return;
-    const wrap = this.canvas.parentElement;
-    const maxW = (wrap?.clientWidth  || 360) - 8;
-    const maxH = (window.innerHeight - 220);
-    const szW  = Math.floor(maxW / GRID_COLS);
-    const szH  = Math.floor(maxH / GRID_ROWS);
-    this.cellSz        = Math.max(20, Math.min(36, szW, szH));
-    this.canvas.width  = GRID_COLS * this.cellSz;
-    this.canvas.height = GRID_ROWS * this.cellSz;
+    const wrap   = this.canvas.parentElement;
+    const availW = Math.max(160, (wrap?.clientWidth  || 320) - 16);
+    const availH = Math.max(400, window.innerHeight - 200);
+    const byW    = Math.floor(availW / NUM_COLS);
+    const byH    = Math.floor(availH / NUM_ROWS);
+    this.cellSz          = Math.max(18, Math.min(48, byW, byH));
+    this.canvas.width    = NUM_COLS * this.cellSz;
+    this.canvas.height   = NUM_ROWS * this.cellSz;
   }
 
-  cx(c) { return c * this.cellSz; }
-  cy(r) { return (GRID_ROWS - 1 - r) * this.cellSz; }
+  /** Center x of a track column. */
+  _tx(col) { return (col + 0.5) * this.cellSz; }
+
+  /** Center y of a row (row 0 = top). */
+  _ry(row) { return (row + 0.5) * this.cellSz; }
 
   _renderLoop() {
     cancelAnimationFrame(this.rafId);
@@ -201,146 +221,198 @@ class LadderGame {
     const W   = this.canvas.width;
     const H   = this.canvas.height;
 
-    // Background
-    ctx.fillStyle = '#0d1117';
+    // ── Background ──────────────────────────────────────────────────────────
+    ctx.fillStyle = '#0a0f1a';
     ctx.fillRect(0, 0, W, H);
 
-    // Map cells
-    for (let r = 0; r < GRID_ROWS; r++) {
-      for (let c = 0; c < GRID_COLS; c++) {
-        if (!this.isPass(c, r)) continue;
-        const x = this.cx(c), y = this.cy(r);
-        const isLadderCol = (c === 1 || c === 8);
-        if (r === FINISH_ROW)     ctx.fillStyle = 'rgba(255,210,50,0.18)';
-        else if (isLadderCol)     ctx.fillStyle = 'rgba(220,180,0,0.10)';
-        else                      ctx.fillStyle = 'rgba(0,180,80,0.09)';
-        ctx.fillRect(x + 1, y + 1, sz - 2, sz - 2);
-      }
-    }
+    // ── Finish zone ─────────────────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(255,210,50,0.10)';
+    ctx.fillRect(0, 0, W, sz);
+    ctx.fillStyle = '#f7dc6f';
+    ctx.fillRect(0, 0, W, 3);
+    ctx.font         = `bold ${Math.max(10, sz * 0.38)}px Inter,sans-serif`;
+    ctx.fillStyle    = '#f7dc6f';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏁  F I N I S H', W / 2, sz * 0.45);
 
-    // Grid outlines
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth   = 0.5;
-    for (let r = 0; r < GRID_ROWS; r++) {
-      for (let c = 0; c < GRID_COLS; c++) {
-        if (this.isPass(c, r)) ctx.strokeRect(this.cx(c) + .5, this.cy(r) + .5, sz - 1, sz - 1);
-      }
-    }
-
-    // Finish line
-    ctx.fillStyle = 'rgba(255,210,50,0.7)';
-    ctx.fillRect(0, this.cy(FINISH_ROW), W, 3);
-    ctx.font      = `bold ${Math.max(10, sz * 0.35)}px Inter,sans-serif`;
-    ctx.fillStyle = 'rgba(255,210,50,0.9)';
-    ctx.textAlign = 'right';
-    ctx.fillText('FINISH', W - 4, this.cy(FINISH_ROW) - 4);
-
-    // Ladder bars + rungs
-    for (const [col, rs, re] of LADDER_DEFS) {
-      const lx  = this.cx(col);
-      const yT  = this.cy(re);
-      const yB  = this.cy(rs) + sz;
-      const barX = lx + sz * 0.3;
-      const barW = sz * 0.4;
-
-      const grad = ctx.createLinearGradient(barX, yT, barX, yB);
-      grad.addColorStop(0, 'rgba(255,200,0,0.65)');
-      grad.addColorStop(1, 'rgba(160,110,0,0.65)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(barX, yT, barW, yB - yT);
-
-      ctx.strokeStyle = 'rgba(255,200,0,0.35)';
-      ctx.lineWidth   = 1;
-      for (let r = rs; r <= re; r++) {
-        const ry = this.cy(r) + sz / 2;
-        ctx.beginPath(); ctx.moveTo(lx, ry); ctx.lineTo(lx + sz, ry); ctx.stroke();
-      }
-    }
-
-    // Selection phase overlay
-    if (this.state === 'selecting') this._drawSelectOverlay(ctx, sz, W);
-
-    // Apples
-    for (const [ac, ar] of this.apples) {
-      const ax = this.cx(ac) + sz / 2;
-      const ay = this.cy(ar) + sz / 2;
-      const ar2 = sz * 0.3;
-      const grd = ctx.createRadialGradient(ax - ar2 * .3, ay - ar2 * .3, ar2 * .1, ax, ay, ar2);
-      grd.addColorStop(0, '#ff8080'); grd.addColorStop(1, '#c0392b');
-      ctx.beginPath(); ctx.arc(ax, ay, ar2, 0, Math.PI * 2);
-      ctx.fillStyle = grd;
-      ctx.shadowColor = '#ff4444'; ctx.shadowBlur = 6; ctx.fill(); ctx.shadowBlur = 0;
-    }
-
-    // Snakes
-    for (const snake of Object.values(this.snakes)) {
-      const body = snake.body; if (!body?.length) continue;
-      const isMe = snake.player_id === this.playerID;
-      body.forEach(([bc, br], i) => {
-        const bx = this.cx(bc) + 2, by = this.cy(br) + 2, bs = sz - 4;
-        if (i === 0) {
-          ctx.fillStyle  = snake.color;
-          ctx.shadowColor = snake.color; ctx.shadowBlur = isMe ? 14 : 5;
-          this._rr(ctx, bx, by, bs, bs, 4); ctx.fill(); ctx.shadowBlur = 0;
-          ctx.fillStyle = '#000';
-          const er = Math.max(1.5, sz * .1);
-          ctx.beginPath(); ctx.arc(bx + bs * .3, by + bs * .3, er, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.arc(bx + bs * .7, by + bs * .3, er, 0, Math.PI * 2); ctx.fill();
-        } else {
-          ctx.fillStyle = snake.color + 'bb';
-          this._rr(ctx, bx + 1, by + 1, bs - 2, bs - 2, 3); ctx.fill();
-        }
-      });
-      if (snake.finished) {
-        ctx.font = `${sz * .75}px sans-serif`; ctx.textAlign = 'center';
-        ctx.fillText('🏁', this.cx(body[0][0]) + sz / 2, this.cy(body[0][1]) + sz * .82);
-      }
-    }
-
-    // Selection: player markers on row 0
+    // ── Start zone label ────────────────────────────────────────────────────
     if (this.state === 'selecting') {
-      ctx.textAlign = 'center';
-      for (const [pid, col] of Object.entries(this.selectedCols)) {
-        const info = this.players.find(p => p.player_id === pid); if (!info) continue;
-        const mx   = this.cx(col) + sz / 2, my = this.cy(0) + sz / 2;
-        ctx.beginPath(); ctx.arc(mx, my, sz * .35, 0, Math.PI * 2);
-        ctx.fillStyle = info.color; ctx.fill();
-        ctx.font = `bold ${sz * .42}px Inter,sans-serif`;
-        ctx.fillStyle = '#000';
-        ctx.fillText(info.nickname[0].toUpperCase(), mx, my + sz * .16);
+      ctx.font         = `${Math.max(9, sz * 0.30)}px Inter,sans-serif`;
+      ctx.fillStyle    = 'rgba(255,255,255,0.45)';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('▼ 點選下方格子選擇起始軌道 ▼', W / 2, this._ry(START_ROW) - sz * 0.7);
+    }
+
+    // ── Vertical tracks ─────────────────────────────────────────────────────
+    for (let col = 0; col < NUM_COLS; col++) {
+      const cx   = this._tx(col);
+      const barW = sz * 0.20;
+      const topY = sz * 0.95;
+      const botY = H - sz * 0.05;
+
+      const grad = ctx.createLinearGradient(cx, topY, cx, botY);
+      grad.addColorStop(0, 'rgba(80,120,180,0.55)');
+      grad.addColorStop(1, 'rgba(40,60,100,0.35)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx - barW / 2, topY, barW, botY - topY);
+    }
+
+    // ── Rungs + apples ──────────────────────────────────────────────────────
+    for (const [row, c1, c2] of RUNGS) {
+      const x1 = this._tx(c1);
+      const x2 = this._tx(c2);
+      const ry  = this._ry(row);
+
+      // Rung bar (golden)
+      ctx.shadowColor = '#f7dc6f';
+      ctx.shadowBlur  = 5;
+      ctx.strokeStyle = '#b8860b';
+      ctx.lineWidth   = Math.max(3, sz * 0.13);
+      ctx.lineCap     = 'round';
+      ctx.beginPath(); ctx.moveTo(x1, ry); ctx.lineTo(x2, ry); ctx.stroke();
+      ctx.shadowBlur  = 0;
+
+      // Apple (red circle, mid-rung)
+      const mx  = (x1 + x2) / 2;
+      const ar  = Math.max(4, sz * 0.16);
+      const grd = ctx.createRadialGradient(mx - ar * 0.3, ry - ar * 0.3, ar * 0.1, mx, ry, ar);
+      grd.addColorStop(0, '#ffbbbb');
+      grd.addColorStop(1, '#bb1111');
+      ctx.shadowColor = '#ff4444';
+      ctx.shadowBlur  = 6;
+      ctx.fillStyle   = grd;
+      ctx.beginPath(); ctx.arc(mx, ry, ar, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur  = 0;
+    }
+
+    // ── Selection phase: start squares ──────────────────────────────────────
+    if (this.state === 'selecting') {
+      this._drawStartSquares(ctx, sz);
+    }
+
+    // ── Player tokens (game) ────────────────────────────────────────────────
+    if (this.state === 'playing' || this.state === 'finished') {
+      this._drawPlayers(ctx, sz);
+    }
+
+    // ── Selection phase: show chosen token at their start ───────────────────
+    if (this.state === 'selecting') {
+      this._drawSelTokens(ctx, sz);
+    }
+
+    // ── Countdown overlay ───────────────────────────────────────────────────
+    if (this.state === 'selecting') {
+      this._drawCountdown(ctx, sz, W);
+    }
+  }
+
+  _drawStartSquares(ctx, sz) {
+    for (let col = 0; col < NUM_COLS; col++) {
+      const cx  = this._tx(col);
+      const cy  = this._ry(START_ROW);
+      const hw  = sz * 0.40;
+
+      const takenPid = Object.entries(this.selectedCols).find(([, c]) => c === col && this.selectedCols[this.playerID] !== col)?.[0];
+      const isMe     = this.selectedCols[this.playerID] === col;
+
+      if (isMe) {
+        ctx.fillStyle   = 'rgba(0,255,136,0.35)';
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth   = 3;
+      } else if (takenPid) {
+        const info = this.lobbyPlayers.find(p => p.pid === takenPid);
+        ctx.fillStyle   = (info?.color || '#ff6b6b') + '44';
+        ctx.strokeStyle = info?.color || '#ff6b6b';
+        ctx.lineWidth   = 2;
+      } else {
+        ctx.fillStyle   = 'rgba(255,255,255,0.08)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.40)';
+        ctx.lineWidth   = 1.5;
+      }
+      ctx.fillRect(  cx - hw, cy - hw, hw * 2, hw * 2);
+      ctx.strokeRect(cx - hw, cy - hw, hw * 2, hw * 2);
+
+      // Column index label
+      if (!this.selectedCols[this.playerID] && !Object.values(this.selectedCols).includes(col)) {
+        ctx.fillStyle    = 'rgba(255,255,255,0.50)';
+        ctx.font         = `${sz * 0.32}px Inter,sans-serif`;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(col + 1, cx, cy);
       }
     }
   }
 
-  _drawSelectOverlay(ctx, sz, W) {
-    // Darken non-start rows
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    for (let r = 1; r < GRID_ROWS; r++) {
-      if (this.isPass(0, r) || this.isPass(1, r) || this.isPass(8, r)) {
-        for (let c = 0; c < GRID_COLS; c++) {
-          if (this.isPass(c, r)) ctx.fillRect(this.cx(c), this.cy(r), sz, sz);
-        }
-      }
+  _drawSelTokens(ctx, sz) {
+    for (const [pid, col] of Object.entries(this.selectedCols)) {
+      const info = this.lobbyPlayers.find(p => p.pid === pid);
+      if (!info) continue;
+      const cx = this._tx(col);
+      const cy = this._ry(START_ROW);
+      const r  = sz * 0.27;
+      ctx.shadowColor = info.color;
+      ctx.shadowBlur  = 8;
+      ctx.fillStyle   = info.color;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur  = 0;
+      ctx.fillStyle    = '#000';
+      ctx.font         = `bold ${sz * 0.27}px Inter,sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(info.nickname[0].toUpperCase(), cx, cy);
     }
-    // Highlight start row options
-    for (let c = 0; c < GRID_COLS; c++) {
-      if (!this.isPass(c, 0)) continue;
-      const taken = Object.entries(this.selectedCols).some(([pid, v]) => v === c && pid !== this.playerID);
-      const isMe  = this.selectedCols[this.playerID] === c;
-      ctx.fillStyle = isMe ? 'rgba(0,255,136,.4)' : taken ? 'rgba(255,80,80,.2)' : 'rgba(255,255,255,.13)';
-      ctx.fillRect(this.cx(c) + 2, this.cy(0) + 2, sz - 4, sz - 4);
-    }
-    // Countdown box
-    const cx2 = W / 2;
-    ctx.fillStyle = 'rgba(0,0,0,.8)';
-    this._rr(ctx, cx2 - 120, 6, 240, 44, 8); ctx.fill();
-    ctx.font = `bold 17px Inter,sans-serif`; ctx.fillStyle = '#f7dc6f'; ctx.textAlign = 'center';
-    ctx.fillText(`⏱ 選擇起點  ${this.selTimeLeft}s`, cx2, 32);
-    ctx.font = '12px Inter,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.65)';
-    ctx.fillText('點擊下方格子選擇起始欄位', cx2, 60);
   }
 
-  // Rounded rect path helper
+  _drawCountdown(ctx, sz, W) {
+    const boxW = 220;
+    const boxH = 44;
+    const boxX = W / 2 - boxW / 2;
+    const boxY = sz * 1.15;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    this._rr(ctx, boxX, boxY, boxW, boxH, 8); ctx.fill();
+
+    ctx.font         = `bold 16px Inter,sans-serif`;
+    ctx.fillStyle    = '#f7dc6f';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`⏱ 選擇起始軌道  ${this.selTimeLeft}s`, W / 2, boxY + boxH / 2);
+  }
+
+  _drawPlayers(ctx, sz) {
+    for (const player of Object.values(this.gamePlayers)) {
+      const px   = this._tx(player.col);
+      const py   = this._ry(player.row);
+      const r    = sz * 0.30;
+      const isMe = player.pid === this.playerID;
+
+      ctx.shadowColor = player.color;
+      ctx.shadowBlur  = isMe ? 18 : 8;
+      ctx.fillStyle   = player.color;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur  = 0;
+
+      // Initial letter
+      ctx.fillStyle    = '#000';
+      ctx.font         = `bold ${sz * 0.27}px Inter,sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(player.nickname[0].toUpperCase(), px, py);
+
+      // Finish medal above token
+      if (player.finished) {
+        ctx.font         = `${sz * 0.45}px sans-serif`;
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(MEDALS[(player.finish_rank || 1) - 1] ?? '🏅', px, py - r - 2);
+        ctx.textBaseline = 'middle';
+      }
+    }
+  }
+
+  // ── Rounded rect path ──────────────────────────────────────────────────────
+
   _rr(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
@@ -354,66 +426,87 @@ class LadderGame {
     ctx.closePath();
   }
 
-  // ── HUD ──────────────────────────────────────────────────────────────────
-  _updateHUD() {
-    const tEl = document.getElementById('ladderTimer');
+  // ── HUD ────────────────────────────────────────────────────────────────────
+
+  _renderHUDSelecting() {
     const sEl = document.getElementById('ladderScores');
-    if (!tEl || !sEl) return;
-    const rem = Math.max(0, 120 - Math.floor(this.gameElapsed));
-    const m = String(Math.floor(rem / 60)).padStart(2, '0');
-    const s = String(rem % 60).padStart(2, '0');
-    tEl.textContent = `${m}:${s}`;
-    tEl.style.color = rem < 30 ? '#ff6b6b' : '#f7dc6f';
-    sEl.innerHTML = Object.values(this.snakes)
-      .sort((a, b) => b.apples_eaten - a.apples_eaten)
-      .map(p => `
-        <div class="hud-player" style="border-left:3px solid ${p.color}">
-          <span class="hud-name">${p.nickname}</span>
-          <span class="hud-apple">🍎${p.apples_eaten}</span>
-          ${p.finished ? '<span class="hud-fin">🏁</span>' : ''}
-        </div>`).join('');
+    if (!sEl) return;
+    sEl.innerHTML = this.lobbyPlayers.map(p => `
+      <div class="hud-player" style="border-left:3px solid ${p.color}">
+        <span class="hud-name">${p.nickname}</span>
+        ${p.is_host ? '<span class="hud-fin">主機</span>' : ''}
+      </div>`).join('');
   }
 
-  // ── Lobby UI ──────────────────────────────────────────────────────────────
-  _uiShowWaiting() {
+  _updateHUD() {
+    const sEl = document.getElementById('ladderScores');
+    if (!sEl) return;
+    const sorted = Object.values(this.gamePlayers).sort((a, b) => {
+      if (a.finished && !b.finished) return -1;
+      if (!a.finished && b.finished) return 1;
+      if (a.finished && b.finished) return (a.finish_rank || 99) - (b.finish_rank || 99);
+      return a.row - b.row;  // closer to row 0 = closer to finish
+    });
+    sEl.innerHTML = sorted.map((p, i) => `
+      <div class="hud-player" style="border-left:3px solid ${p.color}">
+        <span class="hud-rank">${p.finished ? MEDALS[(p.finish_rank||1)-1]||'🏅' : `${i+1}`}</span>
+        <span class="hud-name">${p.nickname}</span>
+        ${p.finished ? '<span class="hud-fin">✓</span>' : ''}
+      </div>`).join('');
+  }
+
+  // ── Lobby UI ───────────────────────────────────────────────────────────────
+
+  _showLobbyWaiting() {
     document.getElementById('lbCreate')?.classList.add('hidden');
     document.getElementById('lbWaiting')?.classList.remove('hidden');
-    const code = document.getElementById('roomCodeDisplay');
-    if (code) code.textContent = this.roomCode;
-    const startBtn = document.getElementById('btnStartGame');
-    const hint     = document.getElementById('lobbyHint');
-    if (startBtn) startBtn.classList.toggle('hidden', !this.isHost);
-    if (hint) hint.textContent = this.isHost ? '等待玩家加入…（需要 2 人）' : '等待主機開始…';
-    this._uiRenderPlayers();
+    const codeEl = document.getElementById('roomCodeDisplay');
+    if (codeEl) codeEl.textContent = this.roomCode;
+
+    // Host-only buttons
+    document.getElementById('btnStartGame')?.classList.toggle('hidden', !this.isHost);
+    document.getElementById('btnCloseRoom')?.classList.toggle('hidden', !this.isHost);
+
+    const hint = document.getElementById('lobbyHint');
+    if (hint) hint.textContent = this.isHost
+      ? '等待玩家加入…（至少 2 人才能開始，最多 5 人）'
+      : '等待主機開始…';
+
+    this._renderLobbyPlayers();
   }
 
-  _uiRenderPlayers() {
+  _renderLobbyPlayers() {
     const el = document.getElementById('lobbyPlayerList');
     if (!el) return;
-    el.innerHTML = this.players.map(p => `
+    el.innerHTML = this.lobbyPlayers.map(p => `
       <div class="lobby-player" style="border-left:4px solid ${p.color}">
-        <span>🐍</span>
+        <span class="lp-icon">🧗</span>
         <span class="lp-name">${p.nickname}</span>
         ${p.is_host ? '<span class="lp-host">主機</span>' : ''}
       </div>`).join('');
   }
 
-  // ── Results UI ────────────────────────────────────────────────────────────
+  _resetLobbyUI() {
+    document.getElementById('lbCreate')?.classList.remove('hidden');
+    document.getElementById('lbWaiting')?.classList.add('hidden');
+  }
+
+  // ── Results UI ─────────────────────────────────────────────────────────────
+
   _renderResults(results) {
     const el = document.getElementById('ladderResultsList');
     if (!el) return;
-    const medals = ['🥇','🥈','🥉','🏅'];
-    el.innerHTML = results.map((r, i) => `
-      <div class="result-row${r.player_id === this.playerID ? ' result-me' : ''}"
+    el.innerHTML = results.map(r => `
+      <div class="result-row${r.pid === this.playerID ? ' result-me' : ''}"
            style="border-left:4px solid ${r.color}">
-        <span class="res-medal">${medals[i] ?? `#${r.rank}`}</span>
+        <span class="res-medal">${r.medal}</span>
         <span class="res-name">${r.nickname}</span>
-        <span class="res-score">🍎 ${r.apples_eaten}</span>
-        ${r.finished ? '<span class="res-fin">✓ 到頂</span>' : ''}
+        <span class="res-status">${r.finished ? '🏁 完成' : '未完成'}</span>
       </div>`).join('');
   }
 
-  // ── Selection timer ───────────────────────────────────────────────────────
+  // ── Selection countdown ────────────────────────────────────────────────────
+
   _startSelTimer() {
     clearInterval(this._selTimer);
     this._selTimer = setInterval(() => {
@@ -421,88 +514,95 @@ class LadderGame {
     }, 1000);
   }
 
-  // ── Error toast ───────────────────────────────────────────────────────────
+  // ── Error toast ────────────────────────────────────────────────────────────
+
   _showErr(msg) {
     let el = document.getElementById('ladderErrToast');
-    if (!el) { el = document.createElement('div'); el.id = 'ladderErrToast'; el.className = 'err-toast'; document.body.appendChild(el); }
-    el.textContent = msg; el.style.display = 'block';
-    setTimeout(() => { el.style.display = 'none'; }, 3000);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ladderErrToast';
+      el.className = 'err-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3500);
   }
 
-  // ── Input events ─────────────────────────────────────────────────────────
+  // ── Event bindings ─────────────────────────────────────────────────────────
+
   _bindEvents() {
-    // Keyboard
-    document.addEventListener('keydown', (e) => {
-      if (this.state !== 'playing') return;
-      const DIR = { ArrowUp:'up', w:'up', W:'up', ArrowDown:'down', s:'down', S:'down',
-                    ArrowLeft:'left', a:'left', A:'left', ArrowRight:'right', d:'right', D:'right' };
-      const dir = DIR[e.key];
-      if (dir) { e.preventDefault(); this.sendMove(dir); }
-    });
 
-    // D-pad buttons
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('.dpad-btn');
-      if (btn && this.state === 'playing') this.sendMove(btn.dataset.dir);
-    });
-    document.addEventListener('touchstart', (e) => {
-      const btn = e.target.closest('.dpad-btn');
-      if (btn && this.state === 'playing') { e.preventDefault(); this.sendMove(btn.dataset.dir); }
-    }, { passive: false });
-
-    // Canvas click → start selection
-    document.addEventListener('click', (e) => {
-      if (this.state !== 'selecting' || !this.canvas) return;
+    // Canvas click → column selection
+    this.canvas?.addEventListener('click', e => {
+      if (this.state !== 'selecting') return;
       const rect = this.canvas.getBoundingClientRect();
-      if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
-      const col = Math.floor((e.clientX - rect.left) / this.cellSz);
-      if (col >= 0 && col < GRID_COLS && this.isPass(col, 0)) this.selectStart(col);
+      const scaleX = this.canvas.width / rect.width;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top)  * (this.canvas.height / rect.height);
+      // Only respond to clicks in the bottom-row area
+      const startCy = this._ry(START_ROW);
+      if (Math.abs(y - startCy) > this.cellSz * 0.65) return;
+      const col = Math.floor(x / this.cellSz);
+      if (col >= 0 && col < NUM_COLS) this.selectStart(col);
     });
 
-    // Lobby buttons
+    // ── Lobby ──────────────────────────────────────────────────────────────
+
     document.getElementById('btnCreateRoom')?.addEventListener('click', () => {
       const nick = document.getElementById('ladderNickInput')?.value.trim() || this.nickname || '訪客';
       this.nickname = nick;
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         this.connect(nick);
-        // Wait for connection then create room
-        const orig = this.ws.onopen;
-        this.ws.onopen = () => { orig?.call(this.ws); this.createRoom(); };
+        this.ws.onopen = () => this.createRoom();
       } else {
         this.createRoom();
       }
     });
+
     document.getElementById('btnJoinRoom')?.addEventListener('click', () => {
       const nick = document.getElementById('ladderNickInput')?.value.trim() || this.nickname || '訪客';
       this.nickname = nick;
       const code = document.getElementById('joinCodeInput')?.value.trim().toUpperCase();
-      if (!code || code.length !== 4) return;
+      if (!code || code.length !== 4) return this._showErr('請輸入 4 位房間碼');
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         this.connect(nick);
-        const orig = this.ws.onopen;
-        this.ws.onopen = () => { orig?.call(this.ws); this.joinRoom(code); };
+        this.ws.onopen = () => this.joinRoom(code);
       } else {
         this.joinRoom(code);
       }
     });
-    document.getElementById('joinCodeInput')?.addEventListener('keydown', (e) => {
+
+    document.getElementById('joinCodeInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('btnJoinRoom')?.click();
     });
+
     document.getElementById('btnStartGame')?.addEventListener('click', () => {
       if (this.isHost) this.startGame();
     });
+
+    document.getElementById('btnCloseRoom')?.addEventListener('click', () => {
+      if (this.isHost && confirm('確定要關閉房間？所有玩家將被踢出。')) {
+        this.closeRoom();
+        this._resetLobbyUI();
+        window.showScreen('home');
+      }
+    });
+
     document.getElementById('btnLadderBack')?.addEventListener('click', () => {
       this.disconnect();
-      document.getElementById('lbCreate')?.classList.remove('hidden');
-      document.getElementById('lbWaiting')?.classList.add('hidden');
+      this._resetLobbyUI();
       window.showScreen('home');
     });
+
+    // ── Results ─────────────────────────────────────────────────────────────
+
     document.getElementById('btnPlayAgainLadder')?.addEventListener('click', () => {
       this.disconnect();
-      document.getElementById('lbCreate')?.classList.remove('hidden');
-      document.getElementById('lbWaiting')?.classList.add('hidden');
+      this._resetLobbyUI();
       window.showScreen('ladder-lobby');
     });
+
     document.getElementById('btnResultsHome')?.addEventListener('click', () => {
       this.disconnect();
       window.showScreen('home');
@@ -510,5 +610,5 @@ class LadderGame {
   }
 }
 
-// ── Global instance ──────────────────────────────────────────────────────────
+// ── Global instance ────────────────────────────────────────────────────────────
 window.LadderGame = LadderGame;

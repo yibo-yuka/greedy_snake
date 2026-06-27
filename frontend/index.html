@@ -78,7 +78,7 @@
         <div class="mode-icon-wrap">🏆</div>
         <div class="mode-text">
           <h2>爬梯競速</h2>
-          <p>2-4 人即時多人對戰</p>
+          <p>2-5 人即時自動競速</p>
         </div>
         <span class="mode-badge">遊玩</span>
         <div class="mode-shine" aria-hidden="true"></div>
@@ -297,6 +297,7 @@
           </div>
           <div class="lobby-player-list" id="lobbyPlayerList"></div>
           <button class="btn-primary" id="btnStartGame">🚀 開始遊戲</button>
+          <button class="btn-danger" id="btnCloseRoom" style="display:none">❌ 關閉房間</button>
           <p class="lobby-hint" id="lobbyHint">等待主機開始…</p>
         </div>
 
@@ -309,28 +310,15 @@
   <div id="screen-ladder-game" class="screen" aria-label="爬梯競速遊戲" aria-hidden="true">
     <div class="ladder-game-wrap">
       <!-- HUD -->
-      <div class="ladder-hud hidden" id="ladderHUD">
-        <div class="hud-timer" id="ladderTimer">2:00</div>
+      <div class="ladder-hud" id="ladderHUD">
         <div class="hud-scores" id="ladderScores"></div>
       </div>
       <!-- Canvas -->
       <div class="canvas-wrap">
         <canvas id="ladderCanvas" aria-label="爬梯競速遊戲畫面"></canvas>
       </div>
-      <!-- Mobile D-Pad -->
-      <div class="mobile-dpad" id="mobileDpad" aria-label="方向控制">
-        <div class="dpad-row">
-          <button class="dpad-btn" data-dir="up"    aria-label="上">▲</button>
-        </div>
-        <div class="dpad-row dpad-middle">
-          <button class="dpad-btn" data-dir="left"  aria-label="左">◄</button>
-          <div class="dpad-center"></div>
-          <button class="dpad-btn" data-dir="right" aria-label="右">►</button>
-        </div>
-        <div class="dpad-row">
-          <button class="dpad-btn" data-dir="down"  aria-label="下">▼</button>
-        </div>
-      </div>
+      <!-- No D-pad: ladder race is fully automatic -->
+      <p class="ladder-auto-hint">🤖 蛇自動移動，等待選位後比賽開始…</p>
     </div>
   </div>
 

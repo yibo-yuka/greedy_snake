@@ -63,15 +63,14 @@ WSGI_APPLICATION = 'greedy_snake.wsgi.application'
 ASGI_APPLICATION  = 'greedy_snake.asgi.application'
 
 # ── Django Channels ───────────────────────────────────────────────────────
-import os as _os
+# Using InMemoryChannelLayer (single-server Daphne deployment).
+# Avoids redis.exceptions.TimeoutError on pubsub connections.
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [_os.environ.get('REDIS_URL', 'redis://localhost:6379/0')],
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
+
 
 # ── Password validation ───────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [

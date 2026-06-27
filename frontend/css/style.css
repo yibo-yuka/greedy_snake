@@ -151,6 +151,37 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   background: var(--c-green-glow2);
 }
 
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 22px;
+  background: rgba(220, 38, 38, 0.15);
+  color: #ff6b6b;
+  font-family: var(--f-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(220, 38, 38, 0.45);
+  border-radius: var(--r-sm);
+  transition: all 0.2s var(--ease);
+  user-select: none;
+  white-space: nowrap;
+  margin-top: 8px;
+}
+.btn-danger:hover {
+  background: rgba(220, 38, 38, 0.30);
+  border-color: #ff6b6b;
+}
+
+.ladder-auto-hint {
+  text-align: center;
+  color: rgba(255,255,255,0.35);
+  font-size: 0.80rem;
+  padding: 8px 0 4px;
+}
+
+
 .btn-ghost.btn-sm {
   padding: 6px 12px;
   font-size: 0.78rem;
