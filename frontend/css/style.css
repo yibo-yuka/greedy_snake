@@ -99,11 +99,11 @@ html[data-theme="light"] body {
 
 /* Light theme — game title "SNAKE" in mint + dark-green glow */
 html[data-theme="light"] .game-title span {
-  color: var(--c-mint);
+  color: #2e7d1a;
   text-shadow:
-    0 0 8px  rgba(110, 231, 183, 0.70),
-    0 0 26px rgba(46, 125, 26, 0.40),
-    0 0 52px rgba(46, 125, 26, 0.18);
+    0 0 8px  rgba(46, 125, 26, 0.45),
+    0 0 26px rgba(46, 125, 26, 0.28),
+    0 0 52px rgba(46, 125, 26, 0.12);
 }
 
 html[data-theme="light"] .logo-emoji {
