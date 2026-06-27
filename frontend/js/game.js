@@ -11,6 +11,8 @@
  *   requestAnimationFrame → canvas rendering (60fps)
  */
 
+import { getLeaderboard, submitScore, isBackendOnline } from './api.js';
+
 'use strict';
 
 /* ==========================================================
@@ -734,6 +736,15 @@ class LevelSnakeGame extends SnakeGame {
   }
 }
 
+/** XSS-safe HTML entity escaper */
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /* ==========================================================
    App — Screen Manager & Event Orchestrator
    ========================================================== */
@@ -893,7 +904,6 @@ class App {
     el('finalScore').textContent       = score;
     el('finalBest').textContent        = Math.max(score, currentHi);
 
-    // Show apples + level reached for level mode
     if (isLevel && this._gameOverLevel) {
       el('finalApples').textContent = `${apples}顆 · Lv.${this._gameOverLevel}`;
     } else {
@@ -903,8 +913,92 @@ class App {
     const badge = el('newRecordBadge');
     if (badge) badge.style.display = isNewRec ? 'block' : 'none';
 
+    // Show submit button if backend is configured
+    const submitRow = el('submitRow');
+    const submitBtn = el('btnSubmitScore');
+    const submitHint = el('submitHint');
+    if (submitRow) {
+      const isOffline = !window.SNAKE_CONFIG?.apiUrl;
+      // Only show if score > 0 and not guest-only flag
+      submitRow.style.display = (score > 0 && !isOffline) ? 'flex' : 'none';
+      if (submitBtn) submitBtn.disabled = false;
+      if (submitHint) submitHint.textContent = '';
+    }
+
+    // Cache game-over data for submit handler
+    this._lastGameResult = { score, apples, level: this._gameOverLevel };
+
     this.showScreen('gameover');
     this._refreshHome();
+  }
+
+  /** Submit last game result to global leaderboard */
+  async handleSubmitScore() {
+    const btn  = document.getElementById('btnSubmitScore');
+    const hint = document.getElementById('submitHint');
+    if (!btn || !this._lastGameResult || !this.nickname) return;
+
+    btn.disabled   = true;
+    btn.textContent = '提交中…';
+    if (hint) hint.textContent = '';
+
+    const result = await submitScore({
+      nickname:      this.nickname,
+      mode:          this.currentMode,
+      score:         this._lastGameResult.score,
+      apples_eaten:  this._lastGameResult.apples,
+      level_reached: this._lastGameResult.level ?? null,
+    });
+
+    if (result) {
+      btn.textContent = '✅ 已提交';
+      if (hint) hint.textContent = `全球第 ${result.rank} 名`;
+      // Refresh home leaderboard
+      this.refreshLeaderboard(this.currentMode);
+    } else {
+      btn.disabled   = false;
+      btn.textContent = '🌍 提交到全球排行榜';
+      if (hint) hint.textContent = '提交失敗，請稍後再試';
+    }
+  }
+
+  /** Load and render leaderboard on home screen */
+  async refreshLeaderboard(mode = 'infinite') {
+    const list    = document.getElementById('lbList');
+    const loading = document.getElementById('lbLoading');
+    const offline = document.getElementById('lbOffline');
+    const modeTag = document.getElementById('lbModeTag');
+    if (!list) return;
+
+    const MODE_NAMES = { infinite: '無限模式', level: '關卡模式', ladder: '爬梯競速' };
+    if (modeTag) modeTag.textContent = MODE_NAMES[mode] || mode;
+
+    // Show loading state
+    if (loading) loading.style.display = 'flex';
+    if (list)    list.style.display    = 'none';
+    if (offline) offline.style.display = 'none';
+
+    const entries = await getLeaderboard(mode, 10, this.nickname || '');
+
+    if (!entries || entries.length === 0) {
+      if (loading) loading.style.display = 'none';
+      if (offline) offline.style.display = 'flex';
+      return;
+    }
+
+    // Render entries
+    list.innerHTML = entries.map(entry => `
+      <li class="lb-entry${entry.is_me ? ' lb-me' : ''}">
+        <span class="lb-rank rank-${entry.rank <= 3 ? entry.rank : 'other'}">
+          ${entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : entry.rank}
+        </span>
+        <span class="lb-nick">${_escHtml(entry.nickname)}</span>
+        <span class="lb-score">${entry.score.toLocaleString()}</span>
+      </li>
+    `).join('');
+
+    if (loading) loading.style.display = 'none';
+    if (list)    list.style.display    = 'block';
   }
 
   /* ── Event Binding ─────────────────────────── */
@@ -980,7 +1074,11 @@ class App {
 
     // ── Game Over ─────────────────────────────────────
     document.getElementById('btnPlayAgain')?.addEventListener('click', () => {
-      this.startGame();
+      this.startGame(this.currentMode);
+    });
+
+    document.getElementById('btnSubmitScore')?.addEventListener('click', () => {
+      this.handleSubmitScore();
     });
 
     document.getElementById('btnHome')?.addEventListener('click', () => {
@@ -1104,6 +1202,9 @@ class App {
 document.addEventListener('DOMContentLoaded', () => {
   // Mount global app instance
   window.snakeApp = new App();
+
+  // Check backend & load leaderboard on home screen
+  window.snakeApp.refreshLeaderboard('infinite');
 
   // Register Service Worker for PWA offline support
   if ('serviceWorker' in navigator) {

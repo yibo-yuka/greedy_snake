@@ -1109,3 +1109,135 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   50%       { opacity: 1;    transform: scale(1.2); }
 }
 
+/* ============================================================
+   LEADERBOARD LIST (home screen — when backend online)
+   ============================================================ */
+.lb-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px 0;
+  color: var(--c-text2);
+  font-size: 0.82rem;
+}
+
+.lb-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--c-border-green);
+  border-top-color: var(--c-green);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.lb-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+}
+
+.lb-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.025);
+  transition: background 0.15s;
+}
+
+.lb-entry.lb-me {
+  background: var(--c-green-glow2);
+  border: 1px solid var(--c-border-green);
+}
+
+.lb-rank {
+  font-family: var(--f-head);
+  font-size: 0.88rem;
+  min-width: 28px;
+  text-align: center;
+}
+
+.rank-1 { color: var(--c-gold); text-shadow: 0 0 6px var(--c-gold-glow); }
+.rank-2 { color: #c0c0c0; }
+.rank-3 { color: #cd7f32; }
+.rank-other { color: var(--c-muted); font-size: 0.75rem; }
+
+.lb-nick {
+  flex: 1;
+  font-size: 0.84rem;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-entry.lb-me .lb-nick {
+  color: var(--c-green);
+  font-weight: 600;
+}
+
+.lb-score {
+  font-family: var(--f-head);
+  font-size: 0.82rem;
+  color: var(--c-text2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   SUBMIT SCORE BUTTON (game over screen)
+   ============================================================ */
+.submit-row {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.btn-submit-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.12), rgba(0, 200, 255, 0.04));
+  border: 1px solid rgba(0, 200, 255, 0.35);
+  border-radius: var(--r-sm);
+  color: var(--c-blue);
+  font-family: var(--f-head);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  user-select: none;
+}
+
+.btn-submit-score:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.2), rgba(0, 200, 255, 0.08));
+  box-shadow: 0 0 16px rgba(0, 200, 255, 0.22);
+  transform: translateY(-2px);
+}
+
+.btn-submit-score:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.submit-hint {
+  font-size: 0.78rem;
+  color: var(--c-gold);
+  text-align: center;
+  min-height: 18px;
+}
+
+

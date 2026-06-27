@@ -87,12 +87,20 @@
     <section class="leaderboard-panel" aria-label="全球排行榜">
       <div class="panel-header">
         <span class="panel-title">🌐 全球排行榜</span>
-        <span class="panel-mode-tag">無限模式</span>
+        <span class="panel-mode-tag" id="lbModeTag">無限模式</span>
       </div>
-      <div class="leaderboard-offline">
+      <!-- Loading state -->
+      <div class="lb-loading" id="lbLoading" style="display:none">
+        <div class="lb-spinner"></div>
+        <span>載入中…</span>
+      </div>
+      <!-- Leaderboard entries -->
+      <ol class="lb-list" id="lbList" aria-label="排行榜列表" style="display:none"></ol>
+      <!-- Offline fallback -->
+      <div class="leaderboard-offline" id="lbOffline">
         <div class="offline-icon">🔌</div>
         <p>連接後端後啟用全球排行榜</p>
-        <span class="offline-hint">Phase 2 即將上線</span>
+        <span class="offline-hint">Phase 5 部署後自動啟用</span>
       </div>
     </section>
 
@@ -240,6 +248,14 @@
           🎉 新紀錄！恭喜！
         </div>
 
+        <!-- Global submit (shown when backend online) -->
+        <div class="submit-row" id="submitRow" style="display:none">
+          <button class="btn-submit-score" id="btnSubmitScore">
+            🌍 提交到全球排行榜
+          </button>
+          <span class="submit-hint" id="submitHint"></span>
+        </div>
+
         <div class="go-actions">
           <button class="btn-primary" id="btnPlayAgain">🔄 再玩一次</button>
           <button class="btn-ghost" id="btnHome">🏠 回主選單</button>
@@ -249,6 +265,7 @@
     </div>
   </div>
 
-  <script src="./js/game.js"></script>
+  <script src="./js/config.js"></script>
+  <script type="module" src="./js/game.js"></script>
 </body>
 </html>

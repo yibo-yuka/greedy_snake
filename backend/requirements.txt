@@ -1,0 +1,27 @@
+# Django Core
+django>=4.2,<5.0
+djangorestframework>=3.14
+django-cors-headers>=4.3
+
+# Database
+psycopg2-binary>=2.9
+
+# WSGI Server
+gunicorn>=21.2
+
+# Environment & Config
+python-dotenv>=1.0
+
+# Filtering & Pagination
+django-filter>=23.5
+
+# Cache (Redis for Phase 4 WebSocket)
+django-redis>=5.4
+
+# Rate limiting
+django-ratelimit>=4.1
+
+# Phase 4: WebSocket (pre-install for future)
+channels>=4.0
+channels-redis>=4.1
+daphne>=4.0
