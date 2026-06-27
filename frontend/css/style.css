@@ -1869,3 +1869,244 @@ html[data-theme="light"] #gameCanvas {
 }
 .theme-swatch--dark .swatch-apple { background: #ff2244; }
 .theme-swatch--light .swatch-apple { background: #c0392b; }
+
+/* ============================================================
+   RULES SCREEN
+   ============================================================ */
+#screen-rules {
+  background: var(--c-bg);
+  overflow-y: auto;
+  overflow-x: clip;
+}
+
+.rules-container {
+  max-width: 540px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+
+.rules-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.rules-section {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: 18px 20px;
+}
+
+.rules-section-title {
+  font-family: var(--f-head);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--c-green);
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.rules-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rules-list li {
+  font-size: 0.85rem;
+  color: var(--c-text2);
+  line-height: 1.55;
+  padding-left: 14px;
+  position: relative;
+}
+
+.rules-list li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: var(--c-green);
+  opacity: 0.6;
+}
+
+.rules-list strong { color: var(--c-text); }
+
+.rules-desc {
+  font-size: 0.83rem;
+  color: var(--c-text2);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+/* Combo chain diagram */
+.combo-chain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.combo-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border);
+  min-width: 46px;
+}
+
+.cs-pts {
+  font-family: var(--f-head);
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cs-label {
+  font-size: 0.60rem;
+  letter-spacing: 0.06em;
+  color: var(--c-muted);
+}
+
+.cs-base  { background: rgba(255,255,255,0.03); }
+.cs-c1    { background: rgba(57,255,20,0.06);  border-color: rgba(57,255,20,0.25); }
+.cs-c2    { background: rgba(57,255,20,0.10);  border-color: rgba(57,255,20,0.35); }
+.cs-c3    { background: rgba(57,255,20,0.16);  border-color: rgba(57,255,20,0.45); }
+.cs-c4    { background: rgba(57,255,20,0.22);  border-color: rgba(57,255,20,0.55); }
+.cs-c5    { background: rgba(57,255,20,0.30);  border-color: rgba(57,255,20,0.70); }
+
+.cs-base .cs-pts { color: var(--c-text2); }
+.cs-c1 .cs-pts   { color: #7fff50; }
+.cs-c2 .cs-pts   { color: #6eff2a; }
+.cs-c3 .cs-pts   { color: #55ff14; }
+.cs-c4 .cs-pts   { color: #39ff14; }
+.cs-c5 .cs-pts   { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.5); }
+
+.combo-arrow {
+  color: var(--c-muted);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.combo-wrap {
+  font-size: 0.72rem;
+  color: var(--c-muted);
+  background: var(--c-bg2);
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-sm);
+  padding: 4px 10px;
+  margin-left: 4px;
+}
+
+/* Rules table */
+.rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 0.80rem;
+}
+
+.rules-table th {
+  text-align: center;
+  padding: 7px 8px;
+  font-family: var(--f-head);
+  font-size: 0.70rem;
+  letter-spacing: 0.05em;
+  color: var(--c-text2);
+  border-bottom: 1px solid var(--c-border);
+  background: rgba(255,255,255,0.03);
+}
+
+.rules-table td {
+  text-align: center;
+  padding: 7px 8px;
+  color: var(--c-text2);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.rules-table tbody tr:hover td {
+  background: rgba(57,255,20,0.03);
+  color: var(--c-text);
+}
+
+.rules-table td:first-child {
+  font-family: var(--f-head);
+  font-weight: 700;
+  color: var(--c-green);
+}
+
+/* Rules screen code tags */
+#screen-rules code {
+  font-family: monospace;
+  background: rgba(255,255,255,0.07);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.83em;
+}
+
+/* Light theme rules overrides */
+html[data-theme="light"] .cs-c1 { background: rgba(46,125,26,0.08); border-color: rgba(46,125,26,0.3); }
+html[data-theme="light"] .cs-c2 { background: rgba(46,125,26,0.13); border-color: rgba(46,125,26,0.4); }
+html[data-theme="light"] .cs-c3 { background: rgba(46,125,26,0.19); border-color: rgba(46,125,26,0.5); }
+html[data-theme="light"] .cs-c4 { background: rgba(46,125,26,0.26); border-color: rgba(46,125,26,0.6); }
+html[data-theme="light"] .cs-c5 { background: rgba(46,125,26,0.34); border-color: rgba(46,125,26,0.75); }
+html[data-theme="light"] .cs-c1 .cs-pts,
+html[data-theme="light"] .cs-c2 .cs-pts,
+html[data-theme="light"] .cs-c3 .cs-pts,
+html[data-theme="light"] .cs-c4 .cs-pts { color: #2e7d1a; }
+html[data-theme="light"] #screen-rules code {
+  background: rgba(0,0,0,0.07);
+}
+
+/* ============================================================
+   GAME OVER — LANDSCAPE RESPONSIVE
+   ============================================================ */
+/* Scrollable wrapper so card doesn't get clipped in landscape */
+.gameover-scroll {
+  overflow-y: auto;
+  overflow-x: clip;
+  align-items: flex-start;
+  padding: 16px 0;
+}
+
+/* Compact card in very short viewports (landscape phone) */
+@media (max-height: 520px) {
+  .gameover-card {
+    padding: 18px 24px 20px;
+  }
+  .go-title {
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+  }
+  .go-player {
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+  }
+  .result-row {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .result-val.big {
+    font-size: 2rem;
+  }
+  .go-actions {
+    gap: 8px;
+  }
+  .go-actions .btn-primary,
+  .go-actions .btn-ghost {
+    padding: 9px 20px;
+    font-size: 0.82rem;
+  }
+  .new-record {
+    padding: 6px 14px;
+    font-size: 0.78rem;
+  }
+}

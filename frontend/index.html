@@ -47,6 +47,7 @@
         <span class="stat-value gold" id="displayHighScore">0</span>
       </div>
       <button class="btn-ghost btn-sm" id="btnChangeNickname" aria-label="更改暱稱">✏️ 改暱稱</button>
+      <button class="btn-ghost btn-sm" id="btnRules"         aria-label="遊戲規則">📖</button>
       <button class="btn-ghost btn-sm" id="btnOpenSettings" aria-label="設定">⚙️</button>
     </div>
 
@@ -302,7 +303,7 @@
 
   <!-- ─────────── GAME OVER SCREEN ─────────── -->
   <div id="screen-gameover" class="screen" aria-label="遊戲結束" aria-hidden="true">
-    <div class="center-wrapper">
+    <div class="center-wrapper gameover-scroll">
       <div class="gameover-card">
 
         <div class="go-title" aria-live="assertive">GAME OVER</div>
@@ -411,6 +412,95 @@
           <button class="btn-primary" id="btnPlayAgainLadder">🔄 再來一局</button>
           <button class="btn-ghost"   id="btnResultsHome">🏠 回主選單</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── RULES SCREEN ─────────── -->
+  <div id="screen-rules" class="screen" aria-label="遊戲規則" aria-hidden="true">
+    <div class="rules-container">
+
+      <div class="settings-header">
+        <button class="settings-back" id="btnRulesBack" aria-label="返回主選單">
+          <span aria-hidden="true">←</span> 返回
+        </button>
+        <h2 class="settings-title">📖 遊戲規則</h2>
+      </div>
+
+      <div class="rules-body">
+
+        <!-- Basic -->
+        <section class="rules-section">
+          <h3 class="rules-section-title">🐍 基本規則</h3>
+          <ul class="rules-list">
+            <li>控制蛇吃蘋果🍎得分，蛇身會隨之變長。</li>
+            <li>撞牆或咬到自己就<strong>遊戲結束</strong>。</li>
+            <li>地圖邊緣<strong>可穿越</strong>至對面（環繞地圖）。</li>
+          </ul>
+        </section>
+
+        <!-- Combo -->
+        <section class="rules-section">
+          <h3 class="rules-section-title">⚡ 連擊系統</h3>
+          <p class="rules-desc">吃完一顆後，<strong>轉彎 1 次以下</strong>就吃到下一顆，即觸發連擊倍率。連擊最高達 ×32，之後從 ×2 重新循環。</p>
+          <div class="combo-chain">
+            <div class="combo-step cs-base"><span class="cs-pts">10</span><span class="cs-label">普通</span></div>
+            <div class="combo-arrow">→</div>
+            <div class="combo-step cs-c1"><span class="cs-pts">20</span><span class="cs-label">×2</span></div>
+            <div class="combo-arrow">→</div>
+            <div class="combo-step cs-c2"><span class="cs-pts">40</span><span class="cs-label">×4</span></div>
+            <div class="combo-arrow">→</div>
+            <div class="combo-step cs-c3"><span class="cs-pts">80</span><span class="cs-label">×8</span></div>
+            <div class="combo-arrow">→</div>
+            <div class="combo-step cs-c4"><span class="cs-pts">160</span><span class="cs-label">×16</span></div>
+            <div class="combo-arrow">→</div>
+            <div class="combo-step cs-c5"><span class="cs-pts">320</span><span class="cs-label">×32 MAX</span></div>
+            <div class="combo-wrap">↩ 回 ×2</div>
+          </div>
+        </section>
+
+        <!-- Infinite -->
+        <section class="rules-section">
+          <h3 class="rules-section-title">♾️ 無限模式</h3>
+          <ul class="rules-list">
+            <li>每顆蘋果基礎分數：<strong>10 分</strong>。</li>
+            <li>每吃一顆蘋果，速度自動加快，最快可達 <strong>68 ms/步</strong>。</li>
+            <li>無時間限制，看你能吃到幾顆！</li>
+          </ul>
+        </section>
+
+        <!-- Level -->
+        <section class="rules-section">
+          <h3 class="rules-section-title">🎯 關卡模式</h3>
+          <ul class="rules-list">
+            <li>每關必須吃滿指定數量的蘋果才能晉級。</li>
+            <li>蘋果分數隨關卡提升：<strong>第1–2關 10分，第3關起每關+5分</strong>。</li>
+            <li>通關獎勵：<strong>關卡數 × 20 分</strong>（第3關通關 = +60分）。</li>
+            <li>第 3 關起出現障礙物 ✕，每升一關多 2 個（最多 14 個）。</li>
+          </ul>
+          <table class="rules-table">
+            <thead><tr><th>關</th><th>所需顆數</th><th>蘋果分數</th><th>通關獎勵</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>5</td><td>10</td><td>+20</td></tr>
+              <tr><td>2</td><td>7</td><td>10</td><td>+40</td></tr>
+              <tr><td>3</td><td>9</td><td>15</td><td>+60</td></tr>
+              <tr><td>4</td><td>11</td><td>20</td><td>+80</td></tr>
+              <tr><td>5</td><td>13</td><td>25</td><td>+100</td></tr>
+              <tr><td>6+</td><td>15</td><td>+5/關</td><td>+20×N</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Controls -->
+        <section class="rules-section">
+          <h3 class="rules-section-title">🎮 操控方式</h3>
+          <ul class="rules-list">
+            <li><strong>鍵盤：</strong> ↑↓←→ 或 WASD</li>
+            <li><strong>手機：</strong> 畫面上的虛擬搖桿</li>
+            <li><strong>暫停：</strong> 鍵盤 <code>Esc</code> / <code>P</code>，或 HUD 暫停鍵</li>
+          </ul>
+        </section>
+
       </div>
     </div>
   </div>

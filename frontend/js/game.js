@@ -1247,6 +1247,12 @@ class App {
     document.getElementById('btnSettingsBack')?.addEventListener('click', () => {
       this.showScreen('home');
     });
+    document.getElementById('btnRules')?.addEventListener('click', () => {
+      this.showScreen('rules');
+    });
+    document.getElementById('btnRulesBack')?.addEventListener('click', () => {
+      this.showScreen('home');
+    });
     document.querySelectorAll('.theme-option').forEach(btn => {
       btn.addEventListener('click', () => this._applyTheme(btn.dataset.theme));
     });
