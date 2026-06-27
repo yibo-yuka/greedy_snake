@@ -585,6 +585,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   display: flex;
   gap: 6px;
   margin-bottom: 8px;
+  touch-action: manipulation;   /* tell iOS this row is for tapping, not scrolling */
 }
 
 .lb-tab {

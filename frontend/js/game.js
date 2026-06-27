@@ -1246,15 +1246,34 @@ class App {
       btn.addEventListener('click', () => _applyGridSize(parseInt(btn.dataset.size)));
     });
 
-    // ── Leaderboard tabs ──────────────────────────────────────────
+    // ── Leaderboard tabs (mobile-safe touchend + click) ──────────
+    /**
+     * On iOS Safari, 'click' inside a scrollable container can be swallowed
+     * if the OS decides the gesture was a scroll intent.  Using 'touchend'
+     * fires immediately and bypasses that heuristic.  We suppress the
+     * subsequent ghost-click with a short flag.
+     */
+    const _addTouchClick = (el, handler) => {
+      let _touchHandled = false;
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();      // stop ghost click
+        _touchHandled = true;
+        handler();
+        setTimeout(() => { _touchHandled = false; }, 600);
+      }, { passive: false });
+      el.addEventListener('click', () => {
+        if (!_touchHandled) handler();
+      });
+    };
+
     document.querySelectorAll('.lb-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
+      _addTouchClick(btn, () => {
         this.lbMode = btn.dataset.mode;
         this.refreshLeaderboard();
       });
     });
     document.querySelectorAll('.lb-sort').forEach(btn => {
-      btn.addEventListener('click', () => {
+      _addTouchClick(btn, () => {
         this.lbSortBy = btn.dataset.sort;
         this.refreshLeaderboard();
       });
