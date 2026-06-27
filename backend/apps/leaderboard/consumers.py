@@ -118,8 +118,11 @@ class LadderConsumer(AsyncWebsocketConsumer):
         if len(room.lobby) < 2:
             return await self._send({'type': 'error', 'message': '至少需要 2 位玩家'})
         room.state = 'selecting'
+        room.spawn_selection_apples()   # 選位前先擺上蘋果
         await self._broadcast('selecting_msg', {
-            'countdown': SELECTION_TIME, 'map': _map_payload(),
+            'countdown': SELECTION_TIME,
+            'map': _map_payload(),
+            'apples': room.apples,      # 讓前端在選位時就顯示
         })
         asyncio.ensure_future(self._selection_countdown(self.room_code))
 
@@ -184,7 +187,12 @@ class LadderConsumer(AsyncWebsocketConsumer):
             await self._send({'type': 'player_joined', 'players': event['players']})
 
     async def selecting_msg(self, event: dict) -> None:
-        await self._send({'type': 'selecting', 'countdown': event['countdown'], 'map': event['map']})
+        await self._send({
+            'type': 'selecting',
+            'countdown': event['countdown'],
+            'map': event['map'],
+            'apples': event.get('apples', []),
+        })
 
     async def start_selected_msg(self, event: dict) -> None:
         await self._send({'type': 'start_selected',

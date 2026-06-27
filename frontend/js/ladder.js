@@ -87,8 +87,11 @@ class LadderGame {
   }
 
   _onClose() {
-    if (this.state !== 'idle' && this.state !== 'finished')
-      this._showErr('與伺服器斷線，請重新整理頁面');
+    if (this.state !== 'idle' && this.state !== 'finished') {
+      this._showErr(
+        '與伺服器斷線。如果未使用無痕模式，請嘗試關閉廣告活键或指出 VPN。請重新整理頁面。'
+      );
+    }
   }
 
   // ── Message dispatcher ─────────────────────────────────────────────────────
@@ -140,6 +143,7 @@ class LadderGame {
     this.state        = 'selecting';
     this.selTimeLeft  = msg.countdown;
     this.selectedCols = {};
+    this.gameApples   = msg.apples || [];   // 蘋果在選位時就顯示
     window.showScreen('ladder-game');
     this._initCanvas();
     // Show HUD with player list
@@ -300,19 +304,21 @@ class LadderGame {
       ctx.beginPath(); ctx.arc(x2, ry, dotR, 0, Math.PI * 2); ctx.fill();
     }
 
-    // ── Apples (game state) ──────────────────────────────────────────────────
-    const appleR = Math.max(4, rH * 0.24);
-    for (const [ac, ar] of this.gameApples) {
-      const ax = this._tx(ac);
-      const ay = this._ry(ar);
-      // Body
-      ctx.fillStyle = '#DC2626';
-      ctx.beginPath(); ctx.arc(ax, ay, appleR, 0, Math.PI * 2); ctx.fill();
-      // Highlight
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.beginPath();
-      ctx.arc(ax - appleR * 0.32, ay - appleR * 0.32, appleR * 0.30, 0, Math.PI * 2);
-      ctx.fill();
+    // ── Apples (選位和遊戲中都顯示) ────────────────────────────────────
+    if (this.state === 'selecting' || this.state === 'playing') {
+      const appleR = Math.max(4, rH * 0.24);
+      for (const [ac, ar] of this.gameApples) {
+        const ax = this._tx(ac);
+        const ay = this._ry(ar);
+        // Body
+        ctx.fillStyle = '#DC2626';
+        ctx.beginPath(); ctx.arc(ax, ay, appleR, 0, Math.PI * 2); ctx.fill();
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath();
+        ctx.arc(ax - appleR * 0.32, ay - appleR * 0.32, appleR * 0.30, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // ── Selection overlays ───────────────────────────────────────────────────

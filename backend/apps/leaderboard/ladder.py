@@ -117,30 +117,23 @@ class LadderRoom:
                 self.selected_cols[pid] = available.pop(0)
 
     # ── Apple management ──────────────────────────────────────────────────────
-    def _spawn_apple(self) -> list[int] | None:
-        player_pos = {(p.col, p.row) for p in self.players.values()}
-        apple_pos  = {(a[0], a[1]) for a in self.apples}
-        occupied   = player_pos | apple_pos
+    def spawn_selection_apples(self) -> None:
+        """選位開始時產生蘋果，讓玩家 15 秒內制定策略。遊戲進行中不補充。"""
         candidates = [
             (col, row)
             for col in range(NUM_COLS)
-            for row in range(1, START_ROW)      # rows 1–18
-            if (col, row) not in occupied
-            and (col, row) not in RUNG_POSITIONS  # 橫棧端點不放蘋果
+            for row in range(1, START_ROW)   # rows 1–18
+            if (col, row) not in RUNG_POSITIONS
         ]
-        return list(random.choice(candidates)) if candidates else None
+        random.shuffle(candidates)
+        self.apples = [list(pos) for pos in candidates[:APPLE_COUNT]]
 
     # ── Build players + apples ────────────────────────────────────────────────
     def build_players(self) -> None:
         for pid, info in self.lobby.items():
             col = self.selected_cols.get(pid, 0)
             self.players[pid] = Player(pid, info['nickname'], info['color'], col)
-        # Spawn initial apples
-        self.apples = []
-        for _ in range(APPLE_COUNT):
-            apple = self._spawn_apple()
-            if apple:
-                self.apples.append(apple)
+        # Apples were already spawned at selection start; no additional spawn here.
 
     # ── Game tick ─────────────────────────────────────────────────────────────
     def tick(self) -> None:
@@ -164,15 +157,11 @@ class LadderRoom:
                 self.finish_counter += 1
                 player.finish_rank = self.finish_counter
 
-            # 蘋果收集
+            # Apple collection (no respawn — apples are fixed for the whole race)
             for i, apple in enumerate(self.apples):
                 if apple[0] == player.col and apple[1] == player.row:
                     player.apples_eaten += 1
-                    new_apple = self._spawn_apple()
-                    if new_apple:
-                        self.apples[i] = new_apple
-                    else:
-                        self.apples.pop(i)
+                    self.apples.pop(i)   # remove permanently
                     break
 
         if self.all_finished():

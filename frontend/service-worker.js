@@ -6,7 +6,7 @@
 
 'use strict';
 
-const CACHE_VER   = 'v1.3.0';
+const CACHE_VER   = 'v1.5.0';
 const CACHE_NAME  = `greedy-snake-${CACHE_VER}`;
 
 const PRECACHE_URLS = [
@@ -69,19 +69,28 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET
   if (req.method !== 'GET') return;
 
-  // Network-first for API calls (future backend)
+  // Network-first for API calls and WebSocket upgrade requests
   if (url.pathname.startsWith('/api/') || url.pathname.includes('/ws/')) {
     event.respondWith(networkFirst(req));
     return;
   }
 
-  // Skip cross-origin (Google Fonts, etc.) — let browser handle normally
+  // Skip cross-origin (Google Fonts, etc.)
   if (url.origin !== self.location.origin) {
     event.respondWith(fetch(req));
     return;
   }
 
-  // Cache-first for all other same-origin requests
+  // Network-first for HTML and JS (always get fresh code)
+  if (url.pathname.endsWith('.js') ||
+      url.pathname.endsWith('.html') ||
+      url.pathname === '/' ||
+      url.pathname === '') {
+    event.respondWith(networkFirst(req));
+    return;
+  }
+
+  // Cache-first for images, icons, CSS (rarely change)
   event.respondWith(cacheFirst(req));
 });
 
