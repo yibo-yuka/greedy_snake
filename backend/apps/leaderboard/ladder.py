@@ -32,6 +32,13 @@ for _row, _c1, _c2 in RUNGS:
     RUNG_MAP[(_row, _c1)] = _c2
     RUNG_MAP[(_row, _c2)] = _c1
 
+# (col, row) positions that are rung endpoints — avoid placing apples here
+# because rung traversal happens AFTER movement; the pre-teleport cell is
+# never checked for apple collection.
+RUNG_POSITIONS: frozenset[tuple[int, int]] = frozenset(
+    (c, r) for r, c1, c2 in RUNGS for c in (c1, c2)
+)
+
 
 # ── Player ────────────────────────────────────────────────────────────────────
 class Player:
@@ -117,8 +124,9 @@ class LadderRoom:
         candidates = [
             (col, row)
             for col in range(NUM_COLS)
-            for row in range(1, START_ROW)  # rows 1–18
+            for row in range(1, START_ROW)      # rows 1–18
             if (col, row) not in occupied
+            and (col, row) not in RUNG_POSITIONS  # 橫棧端點不放蘋果
         ]
         return list(random.choice(candidates)) if candidates else None
 
