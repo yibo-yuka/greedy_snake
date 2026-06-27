@@ -47,6 +47,7 @@
         <span class="stat-value gold" id="displayHighScore">0</span>
       </div>
       <button class="btn-ghost btn-sm" id="btnChangeNickname" aria-label="更改暱稱">✏️ 改暱稱</button>
+      <button class="btn-ghost btn-sm" id="btnOpenSettings" aria-label="設定">⚙️</button>
     </div>
 
     <!-- Grid Size Selector — above mode cards so it's always visible -->
@@ -130,6 +131,54 @@
       <span>Greedy Snake PWA · 2026</span>
     </footer>
 
+  </div>
+
+  <!-- ─────────── SETTINGS SCREEN ─────────── -->
+  <div id="screen-settings" class="screen" aria-label="設定" aria-hidden="true">
+    <div class="settings-container">
+
+      <div class="settings-header">
+        <button class="settings-back" id="btnSettingsBack" aria-label="返回">
+          <span aria-hidden="true">←</span> 返回
+        </button>
+        <h2 class="settings-title">⚙️ 設定</h2>
+      </div>
+
+      <!-- Theme -->
+      <section class="settings-section" aria-labelledby="settingThemeLabel">
+        <h3 class="settings-section-title" id="settingThemeLabel">外觀主題</h3>
+        <div class="theme-options" role="radiogroup">
+          <button class="theme-option" id="themeOptDark" data-theme="dark" role="radio" aria-checked="true">
+            <div class="theme-swatch theme-swatch--dark">
+              <div class="swatch-snake"></div>
+              <div class="swatch-apple"></div>
+            </div>
+            <span class="theme-label">🌙 暗色模式</span>
+            <span class="theme-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="theme-option" id="themeOptLight" data-theme="light" role="radio" aria-checked="false">
+            <div class="theme-swatch theme-swatch--light">
+              <div class="swatch-snake"></div>
+              <div class="swatch-apple"></div>
+            </div>
+            <span class="theme-label">☀️ 米白色</span>
+            <span class="theme-check" aria-hidden="true">✓</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Grid size -->
+      <section class="settings-section" aria-labelledby="settingGridLabel">
+        <h3 class="settings-section-title" id="settingGridLabel">👁 格子大小</h3>
+        <p class="settings-hint">較大格子適合眼睛不好的玩家</p>
+        <div class="settings-grid-btns">
+          <button class="grid-sel-btn" id="sgridBtn10" data-size="10" aria-pressed="false">大格 10×10</button>
+          <button class="grid-sel-btn" id="sgridBtn15" data-size="15" aria-pressed="false">中格 15×15</button>
+          <button class="grid-sel-btn" id="sgridBtn20" data-size="20" aria-pressed="true">小格 20×20</button>
+        </div>
+      </section>
+
+    </div>
   </div>
 
   <!-- ─────────── NICKNAME SCREEN ─────────── -->

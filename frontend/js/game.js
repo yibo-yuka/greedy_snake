@@ -852,10 +852,29 @@ class App {
     this.gridSize      = parseInt(localStorage.getItem('snake_grid_size') || '20');
     this.lbMode        = 'infinite';   // active leaderboard mode tab
     this.lbSortBy      = 'score';      // active leaderboard sort tab
+    this.theme         = localStorage.getItem('snake_theme') || 'dark';
 
+    this._applyTheme(this.theme, false);
     this._bindAll();
     this._refreshHome();
     this.showScreen('home');
+  }
+
+  /* ── Theme ─────────────────────────────────── */
+  _applyTheme(theme, animate = true) {
+    this.theme = theme;
+    localStorage.setItem('snake_theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+
+    // Update radio state in settings
+    document.querySelectorAll('.theme-option').forEach(btn => {
+      const active = btn.dataset.theme === theme;
+      btn.setAttribute('aria-checked', String(active));
+    });
+
+    // PWA theme-color meta
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = theme === 'light' ? '#f5ede0' : '#39ff14';
   }
 
   /* ── Screen Management ─────────────────────── */
@@ -1183,6 +1202,27 @@ class App {
     };
     _applyGridSize(this.gridSize);  // restore saved preference on boot
     document.querySelectorAll('.grid-sel-btn').forEach(btn => {
+      btn.addEventListener('click', () => _applyGridSize(parseInt(btn.dataset.size)));
+    });
+
+    // ── Settings ───────────────────────────────────────────────
+    document.getElementById('btnOpenSettings')?.addEventListener('click', () => {
+      // Sync grid-sel-btn state for settings page too
+      document.querySelectorAll('#screen-settings .grid-sel-btn').forEach(btn => {
+        const active = parseInt(btn.dataset.size) === this.gridSize;
+        btn.classList.toggle('grid-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      this.showScreen('settings');
+    });
+    document.getElementById('btnSettingsBack')?.addEventListener('click', () => {
+      this.showScreen('home');
+    });
+    document.querySelectorAll('.theme-option').forEach(btn => {
+      btn.addEventListener('click', () => this._applyTheme(btn.dataset.theme));
+    });
+    // Settings page grid buttons share the same _applyGridSize helper
+    document.querySelectorAll('#screen-settings .grid-sel-btn').forEach(btn => {
       btn.addEventListener('click', () => _applyGridSize(parseInt(btn.dataset.size)));
     });
 
