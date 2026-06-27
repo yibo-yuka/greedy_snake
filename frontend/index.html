@@ -434,8 +434,9 @@
           <h3 class="rules-section-title">🐍 基本規則</h3>
           <ul class="rules-list">
             <li>控制蛇吃蘋果🍎得分，蛇身會隨之變長。</li>
-            <li>撞牆或咬到自己就<strong>遊戲結束</strong>。</li>
+            <li>撃中障礙物 <span class="obs-icon" aria-hidden="true">✕</span> 或咬到自己就<strong>遊戲結束</strong>（障礙物從第 3 關開始出現）。</li>
             <li>地圖邊緣<strong>可穿越</strong>至對面（環繞地圖）。</li>
+            <li>蛇不會出界，不必擔心打到地圖邊緣。</li>
           </ul>
         </section>
 
@@ -496,9 +497,25 @@
           <h3 class="rules-section-title">🎮 操控方式</h3>
           <ul class="rules-list">
             <li><strong>鍵盤：</strong> ↑↓←→ 或 WASD</li>
-            <li><strong>手機：</strong> 畫面上的虛擬搖桿</li>
+            <li><strong>手機：</strong> 畫面上的虛擬搖桿，或在畫面任意位置滑動（上下左右）即可改變方向。</li>
             <li><strong>暫停：</strong> 鍵盤 <code>Esc</code> / <code>P</code>，或 HUD 暫停鍵</li>
           </ul>
+        </section>
+
+        <!-- Ratio -->
+        <section class="rules-section">
+          <h3 class="rules-section-title">📈 分顓比率算法</h3>
+          <p class="rules-desc">分顓比率為《<strong>總分 ÷ 吃到顓數</strong>》，反映平均每顓蘋果的得分效率：</p>
+          <ul class="rules-list">
+            <li>分顓比率越高，代表你每顓蘋果平均拿到的分越高，路徑規劃越好。</li>
+            <li>完全不連擊時：<strong>10.0</strong>（每顓 10 分）。</li>
+            <li>全程保持連擊時：平均可超過 <strong>100+</strong> 分/顓。</li>
+            <li><strong>算式：</strong> <code>分顓比率 = 總分 ÷ 吃到顓數</code></li>
+          </ul>
+          <div class="ratio-example">
+            <span>範例：總分 520，吃到 26 顓</span>
+            <span class="ratio-result">520 ÷ 26 = <strong>20.0</strong> 分/顓</span>
+          </div>
         </section>
 
       </div>
