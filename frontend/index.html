@@ -49,6 +49,16 @@
       <button class="btn-ghost btn-sm" id="btnChangeNickname" aria-label="更改暱稱">✏️ 改暱稱</button>
     </div>
 
+    <!-- Grid Size Selector — above mode cards so it's always visible -->
+    <div class="grid-selector" role="group" aria-label="格子大小設定">
+      <span class="grid-sel-label">👁 格子大小</span>
+      <div class="grid-sel-btns">
+        <button class="grid-sel-btn" id="gridBtn10" data-size="10" aria-pressed="false">大格 10×10</button>
+        <button class="grid-sel-btn" id="gridBtn15" data-size="15" aria-pressed="false">中格 15×15</button>
+        <button class="grid-sel-btn" id="gridBtn20" data-size="20" aria-pressed="true">小格 20×20</button>
+      </div>
+    </div>
+
     <main class="modes-grid" role="list" aria-label="遊戲模式">
 
       <div class="mode-card mode-active" id="btnInfiniteMode" role="listitem" tabindex="0"
@@ -85,16 +95,6 @@
       </div>
 
     </main>
-
-    <!-- Grid Size Selector -->
-    <div class="grid-selector" role="group" aria-label="格子大小設定">
-      <span class="grid-sel-label">👁 格子大小（格越少、看越清楚）</span>
-      <div class="grid-sel-btns">
-        <button class="grid-sel-btn" id="gridBtn10" data-size="10" aria-pressed="false">大格 10×10</button>
-        <button class="grid-sel-btn" id="gridBtn15" data-size="15" aria-pressed="false">中格 15×15</button>
-        <button class="grid-sel-btn" id="gridBtn20" data-size="20" aria-pressed="true">小格 20×20</button>
-      </div>
-    </div>
 
     <section class="leaderboard-panel" aria-label="全球排行榜">
       <div class="panel-header">
