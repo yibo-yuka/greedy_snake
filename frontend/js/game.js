@@ -902,10 +902,11 @@ class App {
     const nick = document.getElementById('displayNickname');
     const hi   = document.getElementById('displayHighScore');
     if (nick) nick.textContent = this.nickname || '訪客';
-    // Show best across all modes
-    const infHi   = parseInt(localStorage.getItem('snake_highscore') || '0');
-    const levelHi = parseInt(localStorage.getItem('snake_hs_level')   || '0');
-    if (hi) hi.textContent = Math.max(infHi, levelHi);
+    // Only show scores confirmed by the global leaderboard backend
+    const infHi   = parseInt(localStorage.getItem('snake_global_hs_infinite') || '0');
+    const levelHi = parseInt(localStorage.getItem('snake_global_hs_level')    || '0');
+    const best    = Math.max(infHi, levelHi);
+    if (hi) hi.textContent = best > 0 ? best : '—';
     this.refreshLeaderboard();
   }
 
@@ -1049,8 +1050,9 @@ class App {
     const submitHint = el('submitHint');
     if (submitRow) {
       const isOffline = !window.SNAKE_CONFIG?.apiUrl;
-      submitRow.style.display = (score > 0 && !isOffline && isNewRec) ? 'flex' : 'none';
-      if (submitBtn)  submitBtn.disabled = false;
+      // Always show if online — let backend decide if it’s a new record
+      submitRow.style.display = (score > 0 && !isOffline) ? 'flex' : 'none';
+      if (submitBtn)  { submitBtn.disabled = false; submitBtn.textContent = '🌍 提交到全球排行榜'; }
       if (submitHint) submitHint.textContent = '';
     }
 
@@ -1081,9 +1083,20 @@ class App {
     if (result) {
       btn.textContent = '✅ 已提交';
       if (hint) hint.textContent = `全球第 ${result.rank} 名`;
+
+      // Save backend-confirmed score as the official global high score
+      const globalKey = this.currentMode === 'level'
+        ? 'snake_global_hs_level'
+        : 'snake_global_hs_infinite';
+      const prevGlobal = parseInt(localStorage.getItem(globalKey) || '0');
+      if (this._lastGameResult.score > prevGlobal) {
+        localStorage.setItem(globalKey, String(this._lastGameResult.score));
+      }
+
       // Switch lb to current mode and refresh
       this.lbMode = this.currentMode;
       this.refreshLeaderboard();
+      this._refreshHome();   // update home 最高分 display
     } else {
       btn.disabled   = false;
       btn.textContent = '🌍 提交到全球排行榜';
