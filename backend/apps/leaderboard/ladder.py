@@ -16,7 +16,8 @@ TICK_INTERVAL  = 0.4
 MOVE_PROB      = 0.80
 MAX_PLAYERS    = 5
 SELECTION_TIME = 15
-APPLE_COUNT    = 10   # 地圖上同時存在的蘋果數
+APPLE_MAX      = 20   # 蘋果數量上限
+APPLE_PER_PLYR = 5    # 每位玩家對應 5 顆蘋果
 
 PLAYER_COLORS = ['#00ff88', '#ff6b6b', '#4ecdc4', '#f7dc6f', '#c084fc']
 
@@ -118,7 +119,10 @@ class LadderRoom:
 
     # ── Apple management ──────────────────────────────────────────────────────
     def spawn_selection_apples(self) -> None:
-        """選位開始時產生蘋果，讓玩家 15 秒內制定策略。遊戲進行中不補充。"""
+        """選位開始時產生蘋果，讓玩家 15 秒內制定策略。遊戲進行中不補充。
+        蘋果數量 = 參加人數 × 5，最多 20 顆。
+        """
+        apple_count = min(len(self.lobby) * APPLE_PER_PLYR, APPLE_MAX)
         candidates = [
             (col, row)
             for col in range(NUM_COLS)
@@ -126,7 +130,7 @@ class LadderRoom:
             if (col, row) not in RUNG_POSITIONS
         ]
         random.shuffle(candidates)
-        self.apples = [list(pos) for pos in candidates[:APPLE_COUNT]]
+        self.apples = [list(pos) for pos in candidates[:apple_count]]
 
     # ── Build players + apples ────────────────────────────────────────────────
     def build_players(self) -> None:
