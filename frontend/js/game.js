@@ -1082,7 +1082,7 @@ class App {
     if (list)    list.style.display    = 'none';
     if (offline) offline.style.display = 'none';
 
-    const entries = await getLeaderboard(mode, 10, this.nickname || '');
+    const entries = await getLeaderboard(mode, 10, this.nickname || '', sortBy);
 
     if (!entries || entries.length === 0) {
       if (loading) loading.style.display = 'none';
@@ -1090,14 +1090,19 @@ class App {
       return;
     }
 
-    // Render entries
+    const _val = (e) => {
+      if (sortBy === 'apples') return `${e.apples_eaten}顆`;
+      if (sortBy === 'ratio')  return `${(e.ratio ?? 0).toFixed(1)}分/顆`;
+      return e.score.toLocaleString();
+    };
+
     list.innerHTML = entries.map(entry => `
       <li class="lb-entry${entry.is_me ? ' lb-me' : ''}">
         <span class="lb-rank rank-${entry.rank <= 3 ? entry.rank : 'other'}">
           ${entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : entry.rank}
         </span>
         <span class="lb-nick">${_escHtml(entry.nickname)}</span>
-        <span class="lb-score">${entry.score.toLocaleString()}</span>
+        <span class="lb-score">${_val(entry)}</span>
       </li>
     `).join('');
 
