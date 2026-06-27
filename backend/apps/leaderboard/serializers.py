@@ -16,6 +16,7 @@ class LeaderboardEntrySerializer(serializers.Serializer):
     nickname      = serializers.CharField()
     score         = serializers.IntegerField()
     apples_eaten  = serializers.IntegerField()
+    ratio         = serializers.FloatField(allow_null=True, required=False, default=None)
     level_reached = serializers.IntegerField(allow_null=True)
     created_at    = serializers.DateTimeField(format='%Y-%m-%dT%H:%M:%SZ')
     is_me         = serializers.BooleanField(default=False)

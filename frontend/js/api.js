@@ -69,8 +69,8 @@ export async function isBackendOnline() {
  * @param {string} [myNickname=''] - Highlight this player in results
  * @returns {Promise<Array|null>}  null = offline
  */
-export async function getLeaderboard(mode, limit = 10, myNickname = '') {
-  const params = new URLSearchParams({ limit });
+export async function getLeaderboard(mode, limit = 10, myNickname = '', sortBy = 'score') {
+  const params = new URLSearchParams({ limit, sort_by: sortBy });
   if (myNickname) params.set('nickname', myNickname);
   return _apiFetch(`/leaderboard/${mode}/?${params}`);
 }

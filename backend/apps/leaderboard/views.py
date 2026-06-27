@@ -53,9 +53,10 @@ class LeaderboardView(APIView):
     def get(self, request, mode_name: str):
         limit    = min(int(request.query_params.get('limit', 10)), 100)
         my_nick  = request.query_params.get('nickname', '').strip()
-        cache_key = f'lb:{mode_name}:{limit}'
+        sort_by  = request.query_params.get('sort_by', 'score')   # 'score' | 'apples' | 'ratio'
+        cache_key = f'lb:{mode_name}:{limit}:{sort_by}'
 
-        # Try cache first
+        # Try cache first (only when no personalisation)
         cached = cache.get(cache_key)
         if cached and not my_nick:
             return Response(cached)
@@ -68,37 +69,70 @@ class LeaderboardView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Best score per nickname
-        best_per_player = (
-            Score.objects
-            .filter(mode=mode)
-            .values('nickname')
-            .annotate(best_score=Max('score'))
-            .order_by('-best_score')[:limit]
-        )
-
-        entries = []
-        for i, row in enumerate(best_per_player):
-            # Fetch the full record for metadata (apples, level, time)
-            record = (
-                Score.objects
-                .filter(mode=mode, nickname=row['nickname'], score=row['best_score'])
-                .order_by('created_at')
-                .first()
-            )
-            entries.append({
-                'rank':          i + 1,
-                'nickname':      row['nickname'],
-                'score':         row['best_score'],
-                'apples_eaten':  record.apples_eaten if record else 0,
+        def _enrich(record, rank, best_val=None):
+            """Build a serialisable entry dict from a Score record."""
+            apples = record.apples_eaten if record else 0
+            score  = record.score        if record else 0
+            ratio  = round(score / apples, 1) if apples > 0 else 0.0
+            return {
+                'rank':          rank,
+                'nickname':      record.nickname if record else '',
+                'score':         score,
+                'apples_eaten':  apples,
+                'ratio':         ratio,
                 'level_reached': record.level_reached if record else None,
-                'created_at':    record.created_at if record else None,
-                'is_me':         row['nickname'] == my_nick,
-            })
+                'created_at':    record.created_at    if record else None,
+                'is_me':         (record.nickname if record else '') == my_nick,
+            }
+
+        if sort_by == 'apples':
+            rows = (
+                Score.objects.filter(mode=mode)
+                .values('nickname')
+                .annotate(best=Max('apples_eaten'))
+                .order_by('-best')[:limit]
+            )
+            entries = []
+            for i, row in enumerate(rows):
+                rec = (Score.objects
+                       .filter(mode=mode, nickname=row['nickname'], apples_eaten=row['best'])
+                       .order_by('created_at').first())
+                entries.append(_enrich(rec, i + 1))
+
+        elif sort_by == 'ratio':
+            rows = (
+                Score.objects.filter(mode=mode, apples_eaten__gt=0)
+                .values('nickname')
+                .annotate(best_score=Max('score'))
+                .order_by('-best_score')[:limit * 4]   # oversample to re-sort
+            )
+            raw = []
+            for row in rows:
+                rec = (Score.objects
+                       .filter(mode=mode, nickname=row['nickname'], score=row['best_score'])
+                       .order_by('created_at').first())
+                if rec and rec.apples_eaten > 0:
+                    raw.append({**_enrich(rec, 0), 'ratio': round(rec.score / rec.apples_eaten, 1)})
+            raw.sort(key=lambda x: -x['ratio'])
+            entries = [{**e, 'rank': i + 1} for i, e in enumerate(raw[:limit])]
+
+        else:   # score (default)
+            rows = (
+                Score.objects.filter(mode=mode)
+                .values('nickname')
+                .annotate(best_score=Max('score'))
+                .order_by('-best_score')[:limit]
+            )
+            entries = []
+            for i, row in enumerate(rows):
+                rec = (Score.objects
+                       .filter(mode=mode, nickname=row['nickname'], score=row['best_score'])
+                       .order_by('created_at').first())
+                entries.append(_enrich(rec, i + 1))
 
         data = LeaderboardEntrySerializer(entries, many=True).data
 
-        # Cache leaderboard for 30 seconds (no personalisation)
+        # Cache (no personalisation)
         if not my_nick:
             cache.set(cache_key, data, 30)
 

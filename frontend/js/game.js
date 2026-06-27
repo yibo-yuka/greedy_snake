@@ -252,8 +252,13 @@ class SnakeGame {
   update() {
     if (!this.running || this.paused || this.dying) return;
 
-    // Apply buffered direction (prevents 180° reversal)
+    // Track actual direction changes here (not in setDirection) to avoid
+    // VirtualJoystick calling setDirection many times per tick double-counting.
+    const prevX = this.dir.x, prevY = this.dir.y;
     this.dir = { ...this.nextDir };
+    if (this.dir.x !== prevX || this.dir.y !== prevY) {
+      this.turnsSinceApple++;
+    }
 
     const head = this.snake[0];
     const next = {
@@ -276,30 +281,25 @@ class SnakeGame {
     }
   }
 
-  /** Queue a direction change — ignores 180° reversal; counts as a turn for combo */
+  /** Queue a direction change — ignores 180° reversal (turn counted in update()) */
   setDirection(dir) {
     if (dir.x !== 0 && dir.x === -this.dir.x) return;
     if (dir.y !== 0 && dir.y === -this.dir.y) return;
-    // Only count as a turn if direction genuinely changes from what's queued
-    if (dir.x !== this.nextDir.x || dir.y !== this.nextDir.y) {
-      this.turnsSinceApple++;
-    }
     this.nextDir = { ...dir };
   }
+
+  /** Base score for one apple — override in subclasses for mode-specific scaling */
+  _getAppleScore() { return SCORE_APPLE; }
 
   eatApple(pos) {
     this.applesEaten++;
 
     // ── Combo streak ──────────────────────────────────────────
-    // ≤1 direction change since last apple continues the chain.
-    // activeStreak is what this apple earns:
-    //   chain broken (>1 turn) → activeStreak=0 → pts=10
-    //   1st chain apple       → activeStreak=0 → pts=10  (chain starts for NEXT)
-    //   2nd chain apple       → activeStreak=1 → pts=20
-    //   3rd chain apple       → activeStreak=2 → pts=40  ...etc.
+    // activeStreak=0 → base pts; 1 → ×2; 2 → ×4 …
+    const base         = this._getAppleScore();
     const withinOne    = this.turnsSinceApple <= 1;
     const activeStreak = withinOne ? this.comboStreak : 0;
-    const pts          = SCORE_APPLE * Math.pow(2, activeStreak);
+    const pts          = base * Math.pow(2, activeStreak);
     this.score        += pts;
 
     // Update streak for NEXT apple
@@ -314,7 +314,7 @@ class SnakeGame {
     }
 
     // Floating score label (golden, only when > base score)
-    if (pts > SCORE_APPLE) {
+    if (pts > base) {
       this.comboLabels.push({
         x:       cx,
         y:       cy - this.cellSize * 0.3,
@@ -668,6 +668,7 @@ class LevelSnakeGame extends SnakeGame {
     this.levelBonus      = 0;
     this.transitioning   = false;
     this.speed           = INIT_SPEED;
+    this.turnsSinceApple = 0;
     this._updateLevelHUD();
   }
 
@@ -676,10 +677,14 @@ class LevelSnakeGame extends SnakeGame {
     this._updateLevelHUD();
   }
 
-  // ── Override update: obstacle collision ────────
+  // ── Override update: obstacle collision + turn tracking ────
   update() {
     if (!this.running || this.paused || this.dying || this.transitioning) return;
+    const prevX = this.dir.x, prevY = this.dir.y;
     this.dir = { ...this.nextDir };
+    if (this.dir.x !== prevX || this.dir.y !== prevY) {
+      this.turnsSinceApple++;
+    }
     const head = this.snake[0];
     const next = {
       x: (head.x + this.dir.x + this.gridSize) % this.gridSize,
@@ -841,6 +846,8 @@ class App {
     this.currentMode   = 'infinite';
     this._gameOverLevel = null;
     this.gridSize      = parseInt(localStorage.getItem('snake_grid_size') || '20');
+    this.lbMode        = 'infinite';   // active leaderboard mode tab
+    this.lbSortBy      = 'score';      // active leaderboard sort tab
 
     this._bindAll();
     this._refreshHome();
@@ -876,6 +883,7 @@ class App {
     const infHi   = parseInt(localStorage.getItem('snake_highscore') || '0');
     const levelHi = parseInt(localStorage.getItem('snake_hs_level')   || '0');
     if (hi) hi.textContent = Math.max(infHi, levelHi);
+    this.refreshLeaderboard();
   }
 
   _openNickScreen() {
@@ -1038,8 +1046,9 @@ class App {
     if (result) {
       btn.textContent = '✅ 已提交';
       if (hint) hint.textContent = `全球第 ${result.rank} 名`;
-      // Refresh home leaderboard
-      this.refreshLeaderboard(this.currentMode);
+      // Switch lb to current mode and refresh
+      this.lbMode = this.currentMode;
+      this.refreshLeaderboard();
     } else {
       btn.disabled   = false;
       btn.textContent = '🌍 提交到全球排行榜';
@@ -1048,17 +1057,27 @@ class App {
   }
 
   /** Load and render leaderboard on home screen */
-  async refreshLeaderboard(mode = 'infinite') {
+  async refreshLeaderboard() {
+    const mode   = this.lbMode;
+    const sortBy = this.lbSortBy;
+
+    // Sync tab active states
+    document.querySelectorAll('.lb-tab').forEach(btn => {
+      const on = btn.dataset.mode === mode;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', String(on));
+    });
+    document.querySelectorAll('.lb-sort').forEach(btn => {
+      const on = btn.dataset.sort === sortBy;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', String(on));
+    });
+
     const list    = document.getElementById('lbList');
     const loading = document.getElementById('lbLoading');
     const offline = document.getElementById('lbOffline');
-    const modeTag = document.getElementById('lbModeTag');
     if (!list) return;
 
-    const MODE_NAMES = { infinite: '無限模式', level: '關卡模式', ladder: '爬梯競速' };
-    if (modeTag) modeTag.textContent = MODE_NAMES[mode] || mode;
-
-    // Show loading state
     if (loading) loading.style.display = 'flex';
     if (list)    list.style.display    = 'none';
     if (offline) offline.style.display = 'none';
@@ -1144,6 +1163,20 @@ class App {
     _applyGridSize(this.gridSize);  // restore saved preference on boot
     document.querySelectorAll('.grid-sel-btn').forEach(btn => {
       btn.addEventListener('click', () => _applyGridSize(parseInt(btn.dataset.size)));
+    });
+
+    // ── Leaderboard tabs ──────────────────────────────────────────
+    document.querySelectorAll('.lb-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.lbMode = btn.dataset.mode;
+        this.refreshLeaderboard();
+      });
+    });
+    document.querySelectorAll('.lb-sort').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.lbSortBy = btn.dataset.sort;
+        this.refreshLeaderboard();
+      });
     });
 
     // ── Nickname ──────────────────────────────────────

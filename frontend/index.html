@@ -99,7 +99,17 @@
     <section class="leaderboard-panel" aria-label="全球排行榜">
       <div class="panel-header">
         <span class="panel-title">🌐 全球排行榜</span>
-        <span class="panel-mode-tag" id="lbModeTag">無限模式</span>
+      </div>
+      <!-- Mode tabs: 無限 / 關卡 -->
+      <div class="lb-tabs" role="tablist" aria-label="模式">
+        <button class="lb-tab active" id="lbTabInfinite" data-mode="infinite" role="tab" aria-selected="true">♾ 無限</button>
+        <button class="lb-tab"        id="lbTabLevel"    data-mode="level"    role="tab" aria-selected="false">🎯 關卡</button>
+      </div>
+      <!-- Sort tabs: 分數 / 顆數 / 分/顆 -->
+      <div class="lb-sort-tabs" role="tablist" aria-label="排序">
+        <button class="lb-sort active" id="lbSortScore"  data-sort="score"  role="tab" aria-selected="true">分數</button>
+        <button class="lb-sort"        id="lbSortApples" data-sort="apples" role="tab" aria-selected="false">顆數</button>
+        <button class="lb-sort"        id="lbSortRatio"  data-sort="ratio"  role="tab" aria-selected="false">分/顆</button>
       </div>
       <!-- Loading state -->
       <div class="lb-loading" id="lbLoading" style="display:none">
